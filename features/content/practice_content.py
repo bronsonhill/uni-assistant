@@ -207,7 +207,7 @@ def run():
     if not st.session_state.practice_active:
         if not st.session_state.data:
             st.warning("No questions available. Add some questions first!")
-            st.button("Go to Add Questions", on_click=lambda: st.switch_page("3_🆕_Add_Questions_Manually.py"))
+            st.link_button("Go to Add Cards with AI", "/render_add_ai")
         else:
             st.subheader("Practice Setup")
             

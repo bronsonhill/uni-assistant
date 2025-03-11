@@ -384,7 +384,6 @@ def display_subscription_status():
                 st.markdown("[View account details](/7_👤_Account)", unsafe_allow_html=True)
             else:
                 st.warning("❌ No active subscription")
-                # We do NOT add a subscription button here, as st_paywall handles this
                 
                 # Add link to Account page
-                st.markdown("[View account details](/7_👤_Account)", unsafe_allow_html=True)
+                st.markdown("[View account details](/render_account)", unsafe_allow_html=True)

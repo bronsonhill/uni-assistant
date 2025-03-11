@@ -4,3 +4,4 @@ python-dotenv>=1.0.0
 st-paywall
 httpx-oauth>=0.13.0
 stripe
+pymongo

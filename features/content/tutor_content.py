@@ -21,7 +21,7 @@ def run():
     is_subscribed, user_email = check_subscription(required=True)
     
     # Display subscription status in sidebar
-    display_subscription_status()
+    # display_subscription_status()
     
     # If user is not subscribed, the above function will redirect them
     # The code below will only execute for subscribed users
@@ -249,7 +249,7 @@ def run():
                     
                     st.markdown("### Upload Materials")
                     st.info("To add your course materials, go to 'Add Queue Cards with AI' and upload your files.")
-                    st.button("Go to Add Cards with AI", on_click=lambda: st.switch_page("features/1_🤖_Add_Queue_Cards_with_AI.py"))
+                    st.link_button("Go to Add Cards with AI", "/render_add_ai")
                     st.stop()
         
         # Get subjects that have course materials

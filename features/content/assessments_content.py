@@ -21,7 +21,7 @@ def run():
     is_subscribed, user_email = check_subscription(required=True)
     
     # Display subscription status in sidebar
-    display_subscription_status()
+    # display_subscription_status()
     
     # If user is not subscribed, the above function will redirect them
     # The code below will only execute for subscribed users
