@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from paywall import check_subscription, show_premium_benefits, display_subscription_status
 import users
+from st_paywall import add_auth
 
 def render_account_page():
     """Render the account page content"""
@@ -25,8 +26,16 @@ def render_account_page():
         - Track your learning progress
         """)
         
-        # Login button will be added by st_paywall in the sidebar
-        st.markdown("👈 Use the login button in the sidebar to sign in.")
+        
+        add_auth(
+            required=True,
+            login_button_text="Login to Study Legend",
+            login_button_color="#FF6F00",
+            login_sidebar=False  # Show directly in the page, not in sidebar
+        )
+        
+        # Note about sidebar login
+        st.markdown("👈 You can also use the login button in the sidebar to sign in.")
         
         return
     
