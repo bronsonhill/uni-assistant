@@ -17,14 +17,10 @@ if not hasattr(st.session_state, "server_configured"):
         st._config.set_option("server.enableXsrfProtection", False)
         st._config.set_option("server.enableCORS", False)
         st._config.set_option("server.enableWebsocketCompression", False)
-        st._config.set_option("server.maxSessionAge", 86400)  # 24 hours in seconds
         st._config.set_option("server.maxUploadSize", 50)  # 50 MB upload limit
         
-        # Explicitly configure XSRF cookie options to fix file upload issues
-        st._config.set_option("server.cookieOptions.xsrfCookie", False)
-        
         # Set session expiration time (7 days = 604800 seconds)
-        st._config.set_option("server.sessionOptions.sessionState.maxSessionLife", 604800)
+        st._config.set_option("server.maxSessionAge", 604800)
         
         # Output confirmation of configuration
         print("Server configured with session persistence and XSRF protection disabled")
