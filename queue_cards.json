@@ -1,0 +1,563 @@
+{
+  "Computer Systems": {
+    "1": [
+      {
+        "question": "What is an operating system?",
+        "answer": "",
+        "scores": [
+          {
+            "score": 2,
+            "timestamp": 1741261293
+          }
+        ],
+        "last_practiced": 1741261293
+      },
+      {
+        "question": "What is hardware abstraction?",
+        "answer": "\u2013 Present a simpler, cleaner, easy to use and understand model of the computer\n\u2013 Present an application with a simpler abstract machine that appears to be dedicated to itself\n\nProcessors -> Threads\nMemory -> Address Space\nDisk -> Files\nI/O Defices -> Sockets",
+        "scores": [
+          {
+            "score": 3,
+            "timestamp": 1741319743,
+            "user_answer": "Hardware abstraction in the OS makes available hardware components to system processes/programs for easy use. It converts CPU processes to threads, RAM to a stack etc."
+          },
+          {
+            "score": 3,
+            "timestamp": 1741319785,
+            "user_answer": "Hardware abstraction in the OS makes available hardware components to system processes/programs for easy use. It converts CPU processes to threads, RAM to a stack etc."
+          }
+        ],
+        "last_practiced": 1741319785
+      },
+      {
+        "question": "What is resource management in Operating Systems?",
+        "answer": "",
+        "scores": [
+          {
+            "score": 2,
+            "timestamp": 1741320566,
+            "user_answer": "Resource management is the allocation of memory and CPU by the kernel process to system processes"
+          }
+        ],
+        "last_practiced": 1741320566
+      },
+      {
+        "question": "Provide an overview of computer architecture",
+        "answer": "Answer should include explanation of memory and CPU, including GP and SP registers, ALU and MMU",
+        "scores": [
+          {
+            "score": 2,
+            "timestamp": 1741322209,
+            "user_answer": "Divided into memory and CPU, but please tell me more about these"
+          }
+        ],
+        "last_practiced": 1741322209
+      },
+      {
+        "question": "Describe the process of running an instruction on the CPU",
+        "answer": "Answer should include descriptions of:\n1) Fetch\n2) Decode\n3) Execute",
+        "scores": [
+          {
+            "score": 1,
+            "timestamp": 1741322681,
+            "user_answer": "I don't know this yet"
+          }
+        ],
+        "last_practiced": 1741322681
+      },
+      {
+        "question": "Describe the process of calling subroutines.",
+        "answer": "Answer should include descriptions of:\n1) Subroutine\n2) State of calling function\n3) Examples"
+      },
+      {
+        "question": "What is a stack?",
+        "answer": "Answer should include descriptions of:\n1) Stack\n2) Stack pointer\n3) Stack frame\n4) Stack structure"
+      },
+      {
+        "question": "Describe the use of registers and stack with a sample program.",
+        "answer": "Answer should include:\n1) Register values stored in stack\n2) The return address (the address after the call instruction) is stored in the stack\n3) The PC is loaded with the address of the entry point of the subroutine that has been invoked\n4) The stack pointer is updated to point to the new top of the stack"
+      },
+      {
+        "question": "What is a register?",
+        "answer": "Answer should include:\n1) Description of register\n2) Description of GP and SP registers"
+      },
+      {
+        "question": "What occurs when returning from a subroutine?",
+        "answer": "Answer should include:\n1) Register values are restored from the stack\n2) The PC is loaded with the return address that was also stored on the stack\n3) The stack pointer is updated to point to the previous stack frame"
+      },
+      {
+        "question": "What are memory boundaries?",
+        "answer": "",
+        "scores": [
+          {
+            "score": 3,
+            "timestamp": 1741321364,
+            "user_answer": "Memory boundaries seperate memory into sections for use by different processes"
+          },
+          {
+            "score": 3,
+            "timestamp": 1741321384,
+            "user_answer": "Memory boundaries seperate memory into sections for use by different processes"
+          }
+        ],
+        "last_practiced": 1741321384
+      },
+      {
+        "question": "Explain execution modes.",
+        "answer": "2 execution modes: kernel mode and user mode.\nUser mode:\n\u2013 Cannot issue privileged instructions\n\u2013 Can access only the parts of memory allowed by the OS \nKernel mode:\n\u2013 Can issue all instructions\n\u2013 Can access all memory\nPrivileged instructions\n\u2013 Instructions that affect control of the machine or do I/O\nMode bit in Program Status Word (PSW) indicates the execution mode of a program"
+      },
+      {
+        "question": "What is the OS kernel?",
+        "answer": "Part of the OS that runs in kernel mode\nThe core of the OS: a collection of functions that perform management services such as scheduling, resource allocation, and accessing I/O devices."
+      },
+      {
+        "question": "What are interrupts?",
+        "answer": "\u2022 Events that cause the CPU not to execute the next instruction\n\u2022 CPU enters kernel mode and executes an OS interrupt handler\n\u2022 Interrupt vector (in OS memory) stores addresses of interrupt handlers"
+      },
+      {
+        "question": "What is the basic Operation of an OS?",
+        "answer": "",
+        "scores": [
+          {
+            "score": 1,
+            "timestamp": 1741266725
+          },
+          {
+            "score": 1,
+            "timestamp": 1741266749
+          },
+          {
+            "score": 3,
+            "timestamp": 1741319036,
+            "user_answer": "The basic operation of the OS is to provide an interface for system programs to use hardware resources, while managing resource allocation"
+          },
+          {
+            "score": 3,
+            "timestamp": 1741319054,
+            "user_answer": "The basic operation of the OS is to provide an interface for system programs to use hardware resources, while managing resource allocation"
+          }
+        ],
+        "last_practiced": 1741319054
+      },
+      {
+        "question": "Describe the interrupt process",
+        "answer": "When an interrupt occurs, the CPU loads the:\n\u2013 PSW \u2013 to indicate execution in kernel mode\n\u2013 PC \u2013 with the address in the specified entry in the interrupt vector (address of the interrupt handler function)\nWhen the handler finishes running, the execution of the interrupted application continues where it left off \u2014 except if the OS killed the application or decided to schedule another one"
+      },
+      {
+        "question": "What are the types of interrupts?",
+        "answer": "External interrupts \u2013 generated by external devices at unpredictable times\n\u2013 Clock interrupt: Tells the OS that a certain amount of time has passed\n\u2013 I/O device interrupt: Tells the OS that an I/O operation has completed.\nInternal interrupts \u2013 caused by an exception when executing the current instruction. Because the processor cannot complete the instruction, it transfers responsibility to the OS\n\u2013 Error condition: Tells the OS that the current application did something illegal (divide by zero, try to issue a privileged instruction, etc.)\n\u2013 A temporary problem: E.g., the process tried to access a page of memory that is not allocated at the moment. This is an error condition that the operating system can handle by bringing the required page into memory"
+      },
+      {
+        "question": "What are system calls? Describe a system call execution.",
+        "answer": "Interface between user programs and the operating system.\n1. Put the system call number in a place where OS expects it (e.g., register)\n2. Execute a TRAP instruction to switch from user mode to kernel mode and start execution at a fixed address within the kernel\n3. The kernel code that starts following the TRAP examines the system -- call number and dispatches it to the correct system-call handle\n4. The system call handler runs\n5. Once it has completed its work, control may be returned to the user program\n- The system call may block the caller, the OS will look around to see if some other process can be run next"
+      },
+      {
+        "question": "Provide 3 examples of system calls.",
+        "answer": "May relate to process management, file management, directory and file-system management or misc."
+      },
+      {
+        "question": "Explain the fetch-decode-execute cycle of a CPU.",
+        "answer": "The fetch-decode-execute cycle is the basic operational process of a computer. To execute an instruction, the CPU follows this cycle: First, it fetches the instruction from the main memory whose address is stored in the program counter register. Then, it decodes the instruction to determine what action is required; this involves identifying the operation required and the operands involved. Finally, the execute phase occurs where the decoded instruction is performed. This might involve arithmetic operations performed by the ALU, moving data between registers, or accessing memory\u30104:0\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Describe the roles of general-purpose and special-purpose registers in CPU operations.",
+        "answer": "General-purpose registers in a CPU are used for data manipulation and temporary storage of data needed during computations. They are fast and allow for efficient data handling compared to accessing the main memory. Special-purpose registers, on the other hand, serve dedicated roles like indicating the address of the next instruction (program counter) or holding the results of logical and arithmetic operations (accumulators), among other specific tasks. Each type of register plays a crucial role in optimizing CPU operations and performance\u30104:4\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How does a virtual memory system work, and why is it essential?",
+        "answer": "Virtual memory provides an 'illusion' of a large address space to programs by using disk storage to extend RAM's capacity. This is managed through address spaces, which map virtual addresses used by applications to physical addresses in the RAM. Virtual memory allows for processes to use more memory than physically available and isolates processes for enhanced security and stability, thereby preventing applications from interfering with each other's operation and data\u30104:12\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Illustrate the concept of multiprogramming and its significance in operating systems.",
+        "answer": "Multiprogramming refers to the ability of an operating system to execute multiple programs simultaneously on a single processor by time-sharing the CPU. Each program gets a time slice to execute, and the OS switches between programs quickly to give the appearance that they are running concurrently. This increases CPU utilization and allows users to run multiple applications at once without needing multiple physical CPUs, enhancing efficiency and user experience\u30104:10\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What is the significance of the stack pointer in function calls, and how is it utilized?",
+        "answer": "The stack pointer is a special-purpose register that tracks the top of the stack in memory. During function calls, it helps in maintaining the function's state by storing the return address, local variables, and the caller's state. When a function is called, these elements are 'pushed' onto the stack, and when a function returns, they are 'popped' off. This mechanism aids in the proper execution and returning of functions within programs, maintaining orderly function execution\u30104:1\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Explain the role of the Memory Management Unit (MMU) in computer systems.",
+        "answer": "The Memory Management Unit (MMU) is a crucial component of a computer system responsible for handling all memory and caching operations associated with the processor. The MMU's primary functions include translating virtual addresses to physical addresses and managing the memory hierarchy, which improves access speed and optimizes storage. By facilitating virtual memory, the MMU enables a system to use more memory than is physically available, which is essential for executing large applications efficiently. Additionally, it plays a vital role in enforcing memory protection, ensuring that processes do not interfere with each other by segregating their memory spaces\u30104:2\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Discuss the differences and significance of user mode and kernel mode in operating systems.",
+        "answer": "User mode and kernel mode are two distinct execution modes for processes within an operating system. In user mode, processes run with limited privileges, which means they can't perform tasks that affect the control or security of the entire system, such as accessing hardware directly. This mode prevents applications from accidentally or maliciously damaging the system. In contrast, kernel mode allows the operating system, including its core kernel functions, to run with full privileges, accessing any resource on the system. This distinction is crucial for system stability and security. Transitioning from user mode to kernel mode typically occurs through a system call, which allows user applications to request operations from the operating system\u30104:4\u2020source\u3011.",
+        "scores": [
+          {
+            "score": 3,
+            "timestamp": 1741319147,
+            "user_answer": "Kernel mode provides unrestricted access to hardware resources used for OS processes, while user mode (for system users) has restricted access to resources.  "
+          }
+        ],
+        "last_practiced": 1741319147
+      },
+      {
+        "question": "How do system calls function as an interface between user programs and the operating system?",
+        "answer": "System calls serve as a critical interface between user programs and the operating system, allowing user applications to request services that are beyond their direct reach due to the execution mode restrictions. The process begins with a user program placing a system call number in a register and executing a TRAP instruction, which switches the mode from user to kernel. In kernel mode, the system identifies the requested service by examining the system call number, then dispatches the appropriate system call handler. After the operation is completed, control returns to the user program. System calls cover a range of operations such as process control, file management, and communication\u30104:5\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What are the primary functions of the Arithmetic Logic Unit (ALU) in a CPU?",
+        "answer": "The Arithmetic Logic Unit (ALU) is a crucial component of a CPU, responsible for performing all arithmetic and logical operations. Key arithmetic operations include addition, subtraction, multiplication, and division. In terms of logical operations, the ALU handles operations such as AND, OR, NOT, and XOR, which are essential for decision-making processes during computation. The ALU receives operand inputs from the CPU's general-purpose registers, processes the operation, and outputs the result back to a register. Its efficiency is pivotal in determining the overall speed and efficiency of computational tasks within a processor\u30104:2\u2020source\u3011.",
+        "scores": [
+          {
+            "score": 1,
+            "timestamp": 1741321223,
+            "user_answer": "I don't know"
+          },
+          {
+            "score": 1,
+            "timestamp": 1741321250,
+            "user_answer": "I don't know"
+          }
+        ],
+        "last_practiced": 1741321250
+      },
+      {
+        "question": "What role does the Program Counter (PC) play in CPU operation?",
+        "answer": "The Program Counter (PC) is a special-purpose register within the CPU, crucial for controlling the flow of execution. Its primary role is to keep track of the memory address of the next instruction that is to be executed in a program. During each cycle of CPU operation, the PC fetches the instruction from memory, which is then decoded and executed. After executing an instruction, the PC is automatically incremented or updated to point to the next instruction in the sequence. This systematic progression ensures that the CPU executes a program's instructions in the correct order\u30104:2\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      }
+    ]
+  },
+  "Engineering Technology and Society": {
+    "1": [
+      {
+        "question": "What distinguishes engineering from science, according to Week 1 of 'Engineering Technology and Society'?",
+        "answer": "Engineering is distinct from science in that scientists explore and understand the natural world, while engineers create solutions for practical problems and build systems that have never existed before. Isaac Asimov highlighted that 'Science can amuse and fascinate us all, but it is engineering that changes the world.' Thus, engineering involves the application of scientific principles to design systems, structures, and devices that solve societal problems and improve human life\u30104:0\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What are some of the major societal needs that engineers work to address?",
+        "answer": "Engineers address a range of societal needs, including clean water and safe food; shelter; energy; transportation; storage and communication of information; good health and medical care; national defense; a clean environment; new knowledge; and entertainment and art. They work to tackle these challenges in ways that do not compromise future generations' ability to meet their own needs\u30104:0\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Describe the role of sustainability in engineering as discussed in the Week 1 content.",
+        "answer": "Sustainability is a critical component of engineering practice. Engineers are tasked with finding solutions that meet present demands without depleting resources for future use. This involves designing systems that are efficient, use minimal resources, reduce waste, and have a low impact on the environment\u30104:2\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What skills are important for engineers beyond traditional scientific skills?",
+        "answer": "In addition to traditional scientific and mathematical skills, engineers must develop skills such as problem representation, assumption making, generating design ideas, planning and scheduling activities, efficiently using resources, and organizing team projects. These skills enable engineers to approach complex problems holistically and effectively\u30104:1\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How are engineering disciplines structured, and why is this important?",
+        "answer": "Engineering disciplines are structured into various subsystems such as Civil, Mechanical, Electrical, Chemical, and others. Each discipline addresses specific types of engineering problems, but all are inherently interdisciplinary, meaning engineers need to understand how to work across disciplines to effectively solve complex real-world problems\u30104:3\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What are some challenges in engineering problem-solving as discussed in Week 1's content?",
+        "answer": "Engineering problems are often open-ended, meaning there can be multiple potential solutions, and not enough information may be present to apply familiar techniques. Engineers may need to make assumptions and learn how to evaluate these assumptions' reasonableness. Historical instances show that engineering solutions have sometimes preceded the scientific theories explaining them, demonstrating innovation at the heart of engineering\u30104:1\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Explain the relationship between engineering problem-solving and the limits of scientific knowledge.",
+        "answer": "Engineering problem-solving often involves open-ended problems with more than one possible solution. This contrasts with scientific inquiries that may seek a single, definitive answer. Engineering solutions sometimes precede scientific theories; for instance, many innovations came before the theories that explained why they worked. Therefore, engineers must operate within and even beyond the current limits of scientific knowledge, utilizing creativity and practical judgment\u30104:0\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Discuss the roles of different engineering disciplines in a specific engineering project, such as a water distribution system.",
+        "answer": "In a water distribution system project, various engineering disciplines are involved. Civil engineers may handle the design and construction of tanks and pipes. Mechanical engineers could work on the pumping systems, and electrical engineers might be responsible for the system's electrical supply and control systems. Environmental engineers would focus on ensuring the treatment processes comply with environmental standards, while software engineers may develop the monitoring systems\u30104:3\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What is the definition of engineering according to the Accreditation Board for Engineering and Technology (ABET), and how does it guide engineers in their practice?",
+        "answer": "The Accreditation Board for Engineering and Technology (ABET) defines engineering as the profession where mathematical and natural sciences, gained by study, experience, and practice, are applied with judgment to develop economic ways of utilizing natural materials and forces for human benefit. This definition guides engineers by emphasizing the application of science and math to create useful, economic, and safe solutions\u30104:2\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Identify and explain some of the unexpected areas where engineers can impact society.",
+        "answer": "Beyond addressing traditional challenges like energy and water supply, engineers can impact unexpected areas such as medical care advancements, entertainment technologies, and environmental monitoring. By leveraging their problem-solving skills and creativity, engineers can innovate in these areas to address significant societal needs and improve quality of life\u30104:0\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Describe the key skills, beyond technical expertise, that are necessary for engineers to succeed in today's interdisciplinary world.",
+        "answer": "In addition to technical skills, engineers today need proficiency in business and management, computer literacy, ethical and professional behavior, motivation for lifelong learning, open-mindedness, problem-solving, teamwork, and communication. These skills enable engineers to collaborate across disciplines, effectively manage projects, and adapt to new challenges in a global environment\u30104:3\u2020tmp35vwknip_ETS_W1_Engineering_and_Society_CANVAS.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      }
+    ],
+    "vector_store_metadata": {
+      "1": {
+        "id": "vs_67c99b63152881918a08834cdf501c3f",
+        "name": "Engineering_Technology_and_Society_Week_1"
+      }
+    }
+  },
+  "Applied Computation in Bioengineering": {
+    "1": [
+      {
+        "question": "What is the significance of MATLAB in Applied Computation in Bioengineering?",
+        "answer": "MATLAB is a critical tool in Applied Computation in Bioengineering due to its use in modeling biological systems and automating coding through MATLAB Grader, which provides limitless attempts for improving code. MATLAB also allows for the manipulation of matrices and vectors, which are essential in simulations and modeling in bioengineering contexts\u30104:0\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How does programming in MATLAB help in understanding biological data?",
+        "answer": "Programming in MATLAB aids in understanding biological data by allowing the modeling and simulation of complex biological systems such as COVID-19 epidemics or the evolution of HIV. This approach enables numerical and stochastic solutions that account for noise in biological data, offering insights into real-world biological phenomena\u30104:6\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Explain the concept and application of 'rubber ducking' in programming.",
+        "answer": "Rubber ducking is a method used by programmers to verbalize their coding problems to an inanimate object or a friend, which helps in finding solutions. It is based on the premise that explaining your thought process out loud can clarify your own thinking, making it a valuable tool during programming exercises in workshops\u30104:15\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Describe the importance of variable assignment in MATLAB programming.",
+        "answer": "Variable assignment in MATLAB is crucial as it allows for the storage of computed values, which can be reused in subsequent calculations. This prevents the loss of data that is only temporarily stored as the current answer (denoted as 'ANS' in MATLAB), and helps in managing complex calculations\u30104:7\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What method is used to solve simultaneous equations using matrices in MATLAB?",
+        "answer": "Simultaneous equations can be solved in MATLAB by converting them into a matrix form, where the solution involves calculating the inverse of the matrix representing the variables. You solve for the unknowns by multiplying the inverse of matrix A by matrix B\u30104:13\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How do you perform matrix transposition in MATLAB and why is it necessary?",
+        "answer": "Matrix transposition in MATLAB can be performed using the prime (') operator or the 'transpose' function. Transposition is necessary for operations like matrix addition where matrices must have compatible dimensions\u30104:14\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Why is programming compared to learning a new language, particularly in the context of bioengineering?",
+        "answer": "Programming is compared to learning a new language because it involves understanding syntax and logic to communicate instructions to computers, similar to how languages are used to communicate ideas. In bioengineering, mastering this 'language' allows for effective data analysis and modelling of complex biological systems\u30104:9\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What does the MATLAB command 'CLC' do in a programming environment?",
+        "answer": "The 'CLC' command in MATLAB clears the command window, providing a clean workspace. It is useful for organizing and decluttering the working environment, although it does not clear data stored in the workspace\u30104:7\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Discuss the role of week 1 lectures in preparing students for the Applied Computation in Bioengineering course.",
+        "answer": "Week 1 lectures serve as an introduction to MATLAB and programming basics, intended to ease students into the course regardless of their programming background. This foundational knowledge prepares them for more complex topics in subsequent weeks\u30104:0\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How do weekly quizzes aid in mastering MATLAB programming skills?",
+        "answer": "Weekly quizzes in MATLAB programming provide continuous learning opportunities and reinforcement of concepts. They encourage students to apply their knowledge in practical scenarios, with unlimited attempts allowing for learning through trial and error\u30104:4\u2020tmp8nuvum1t_BMEN20003_2025_SM1 M-transcript.txt\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What is the significance of commenting your code in MATLAB?",
+        "answer": "Commenting your code in MATLAB is vital because it helps clarify the purpose of your code, making it more understandable for others and for yourself when reviewing your own code later. Comments are ignored by MATLAB during execution. Comments provide a way to explain the logic behind your code and ensure good programming practices, which is essential in collaborative projects and enhances maintainability\u30104:13\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Describe the process of plotting a graph in MATLAB.",
+        "answer": "Plotting a graph in MATLAB involves several steps. First, you need to define the data to be plotted as vectors. Then, use the 'plot' function, which requires X and Y data inputs. It's crucial that these vectors are of equal length. There's also a need to specify additional plotting parameters, such as line width and color. MATLAB provides extensive documentation to assist with these tasks\u30104:1\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How can MATLAB be used to handle large data sets in bioengineering?",
+        "answer": "In bioengineering, MATLAB can process large data sets efficiently using matrix operations and built-in functions tailored for numerical analysis. These capabilities are particularly useful in handling genomic data or simulating biological processes, where vast amounts of data are generated\u30104:9\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Explain the concept of element-wise operations in MATLAB and their importance.",
+        "answer": "Element-wise operations in MATLAB, denoted by operators like \u2018.*\u2019 for multiplication, allow operations to be performed on an element-by-element basis between arrays. This is essential when dealing with array computations where scalar multiplication isn't suitable, particularly in bioengineering applications like signal processing\u30104:16\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What are the advantages of using scripts in MATLAB for computations?",
+        "answer": "Using scripts in MATLAB provides a structured approach to writing and executing code blocks. Scripts facilitate the automation of repetitive tasks and ensure consistency in data processing. They allow for debugging and testing of code in segments, which is beneficial for developing complex simulations\u30104:19\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How does MATLAB facilitate the understanding of systems biology in bioengineering?",
+        "answer": "MATLAB supports systems biology through its computational modeling capabilities, which can simulate biological processes and systems. This allows for the analysis and visualization of complex biological interactions, making it easier to understand systemic behaviors and effects\u30104:10\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Discuss the iterative approach to solving problems using MATLAB.",
+        "answer": "The iterative approach in MATLAB involves a cycle of testing, analyzing errors, and refining code. When a function is not giving the expected results, it requires checking the inputs, outputs, and the mathematical logic. This method is critical in developing accurate and efficient code\u30104:19\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What are the benefits of using variable assignments in MATLAB?",
+        "answer": "Variable assignments in MATLAB allow storing interim results of calculations for later use, facilitating more complex computations. This reduces computation redundancy and increases code efficiency by reusing previously computed values\u30104:3\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Why is understanding data types crucial in MATLAB programming?",
+        "answer": "Understanding data types in MATLAB is crucial because it influences how data is stored, manipulated, and analyzed. MATLAB offers various data types, including matrices, cell arrays, and structures, each suitable for different kinds of data processing and analysis\u30104:4\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What role do visualization tools in MATLAB play in the field of bioengineering?",
+        "answer": "Visualization tools in MATLAB, such as plots and charts, are essential for interpreting and presenting bioengineering data effectively. They enable the immediate understanding of complex data and model results, facilitating communication between engineers and biologists\u30104:17\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What is the role of 'ANS' in MATLAB and how does it function as a default output variable?",
+        "answer": "'ANS' in MATLAB is the default name for temporarily storing the result of a command if you do not specify a variable name. If you perform a calculation without assigning it to a variable, MATLAB automatically saves the result in 'ANS'. This value is overwritten by the next unassigned calculation. This feature allows quick analyses but requires caution not to lose data inadvertently\u30104:0\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How does MATLAB's workspace function assist in MATLAB variable management?",
+        "answer": "The MATLAB workspace is a view into the variable usage and creation within the MATLAB environment. It displays all the variables currently in memory, their sizes, and types. It is essential for managing data, identifying unused variables, and troubleshooting scripts. You can clear variables from the workspace to free up memory\u30104:0\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Explain the significance of the \u2018clear\u2019 command within MATLAB and its impact on workspace and command window.",
+        "answer": "The \u2018clear\u2019 command in MATLAB removes variables from the workspace, freeing up system memory. When used together with \u2018clc\u2019, which clears the command window, it helps maintain a clean working environment, ensuring that old data does not interfere with new results\u30104:0\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What are the differences between MATLAB's 'format short', 'format long', and 'format rat' commands?",
+        "answer": "'format short' displays numbers with four decimal places, 'format long' extends output to more decimal places, and 'format rat' displays numbers as fractions or ratios. These functions control numeric output appearance, which can be crucial for precise scientific calculations and presentation\u30104:4\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Discuss the concept of using functions in MATLAB and their significance in bioengineering computations.",
+        "answer": "Functions in MATLAB encapsulate a series of computations into callable units, eliminating repetitive code and increasing modularity and maintainability. Bioengineering computations often involve complex operations on biological data, where MATLAB functions streamline processes like signal analysis or model simulations\u30104:6\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How does MATLAB handle plotting, and what are the basic commands used for creating 2D plots?",
+        "answer": "MATLAB handles plotting through a variety of functions, the most basic being 'plot'. It requires vectors of X and Y coordinates and can generate a 2D line plot. Additional commands like 'xlabel', 'ylabel', and 'title' annotate the plot, enhancing readability and interpretation\u30104:6\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Describe how MATLAB programming can tackle 'big data' challenges in bioengineering.",
+        "answer": "In bioengineering, tasks like genomics analysis involve massive datasets, such as DNA sequences. MATLAB's programming capabilities, including data manipulation functions and efficient algorithms, enable the handling and analysis of these large datasets to find patterns or insights essential for bioengineering research\u30104:13\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Illustrate the process and importance of debugging in MATLAB using an example from the bioengineering domain.",
+        "answer": "Debugging in MATLAB involves using breakpoints, step execution, and inspecting variables to identify errors in code. In bioengineering, debugging ensures accurate modeling and data analysis, such as validating algorithms for processing physiological data, which is critical for deriving correct conclusions\u30104:4\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How do bioengineers utilize MATLAB to simulate biological systems, and what are examples of such simulations?",
+        "answer": "Bioengineers use MATLAB to simulate biological systems by modeling complex interactions through mathematical equations. Examples include simulating cardiovascular dynamics, drug delivery mechanisms, or cellular processes, allowing predictions and visualizations of biological responses under various conditions\u30104:18\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What is the role of teamwork and collaboration in successfully completing MATLAB assignments in a bioengineering context?",
+        "answer": "Teamwork and collaboration in MATLAB assignments facilitate the sharing of diverse skills and ideas, enhancing problem-solving and creativity. In bioengineering, where projects may involve multidisciplinary knowledge, collaboration ensures comprehensive solutions and maintains high standards in research outputs\u30104:18\u2020source\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How does MATLAB handle variable assignment, and what role does the Workspace play in this process?",
+        "answer": "In MATLAB, variable assignment occurs through the Command Window, which acts as a calculator where commands are typed and executed. Variables are assigned using this window, and their values are stored in the Workspace, which maintains a record of variables, including their names, values, and classes. This allows users to monitor and manage their variables effectively\u30104:3\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What are the key differences between matrix multiplication and element-wise operations in MATLAB?",
+        "answer": "In MATLAB, matrix multiplication is performed using the '*' operator, adhering to linear algebra rules where the number of columns in the first matrix must equal the number of rows in the second matrix. Element-wise operations use operators like '.*', './', and '.^', which allow operations on corresponding elements of matrices or arrays regardless of their dimensions\u30104:9\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Describe the process of matrix inversion in MATLAB and its use in solving linear equations.",
+        "answer": "Matrix inversion in MATLAB is handled using the 'inv()' function. This is particularly useful in solving systems of linear equations, where the inverse of matrix A can be used to find the solution vector x in the equation Ax = b, expressed as x = inv(A)*b. Understanding matrix inversion is crucial for applications that require solving simultaneous equations\u30104:10\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Explain the purpose and usage of the 'linspace' function in MATLAB.",
+        "answer": "The 'linspace' function in MATLAB generates a vector with linearly spaced elements between two specified values. It is often used in plotting because it allows for the creation of smooth continuous curves by specifying the number of points in the vector, enhancing the resolution of the plot\u30104:12\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What is the significance of MATLAB's data classes, and how do they affect computations?",
+        "answer": "In MATLAB, data classes determine how data is represented and manipulated. Common numerical classes include 'double' for double-precision floating points and 'int' for integers, with unsigned and signed variants. The choice of data class impacts storage requirements and computational precision, significantly affecting performance and memory usage\u30104:14\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How do the concepts of syntax and documentation interact in effective MATLAB programming?",
+        "answer": "Syntax in MATLAB is crucial for correctly implementing functions and commands. MATLAB's comprehensive documentation provides detailed syntax rules and usage examples, making it an essential resource for troubleshooting and learning new functions. Understanding and referencing documentation facilitates effective programming and helps avoid errors\u30104:14\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Demonstrate how to use MATLAB's 'fprintf' function to output formatted strings to the Command Window.",
+        "answer": "The 'fprintf' function in MATLAB is used to print formatted text to the Command Window. It allows you to specify a format string that controls the text layout, using placeholders like '%s' for strings and '%.3f' for floating-point numbers with three decimal precision. For example, `fprintf('The object %s weighs %.3f kg\\n', 'car', 123.456)` outputs: 'The object car weighs 123.456 kg'\u30104:8\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "What are logical operations, and how are logical data types used in MATLAB?",
+        "answer": "Logical operations in MATLAB involve comparisons that yield logical true (1) or false (0) values. These operations include '&&' for logical AND, '||' for logical OR, and '~' for logical NOT. Logical data types facilitate conditional branching and loop control, enabling MATLAB to make decisions based on specified conditions\u30104:14\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "Illustrate how to define and use matrices in MATLAB for computation.",
+        "answer": "Matrices in MATLAB are defined using a list of numbers enclosed in square brackets, separated by spaces or commas for elements in a row, and semicolons for new rows. For example, A = [1, 2; 3, 4] creates a 2x2 matrix. MATLAB operations like addition, subtraction, and multiplication can be applied to these matrices for complex computations\u30104:6\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      },
+      {
+        "question": "How does debugging work in MATLAB, and why is it essential for programming?",
+        "answer": "Debugging in MATLAB involves setting breakpoints to pause code execution and examine the workspace's state. This process allows you to step through code line-by-line, inspecting variables and correcting errors interactively. Debugging is vital for ensuring code accuracy and functionality, as it aids in identifying and fixing logical and syntactical errors\u30104:4\u2020tmpngm3nrpv_Week 1 Lectures.pdf\u3011.",
+        "scores": [],
+        "last_practiced": null
+      }
+    ],
+    "vector_store_metadata": {
+      "1": {
+        "id": "vs_67c9a8ebd21481919f9bea7afb297108",
+        "name": "Applied_Computation_in_Bioengineering_Week_1"
+      }
+    }
+  }
+}

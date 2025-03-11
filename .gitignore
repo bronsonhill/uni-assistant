@@ -1,0 +1,5 @@
+/venv
+/.streamlit
+.env
+/features/.streamlit/
+*.pyc

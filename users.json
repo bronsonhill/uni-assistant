@@ -1,0 +1,48 @@
+{
+  "users": {
+    "test@example.com": {
+      "email": "test@example.com",
+      "subscription_status": true,
+      "subscription_end": "2026-07-03T00:00:00",
+      "created_at": "2023-07-03T09:30:00",
+      "last_updated": "2023-07-03T09:30:00",
+      "login_count": 1,
+      "last_login": "2023-07-03T09:30:00"
+    },
+    "free@example.com": {
+      "email": "free@example.com",
+      "subscription_status": false,
+      "subscription_end": null,
+      "created_at": "2023-07-01T14:20:00",
+      "last_updated": "2025-03-07T13:42:48.222410",
+      "login_count": 4,
+      "last_login": "2025-03-07T13:42:48.222408"
+    },
+    "test_20250307134248@example.com": {
+      "email": "test_20250307134248@example.com",
+      "subscription_status": false,
+      "subscription_end": null,
+      "created_at": "2025-03-07T13:42:48.222116",
+      "last_updated": "2025-03-07T13:42:48.222119",
+      "login_count": 0
+    },
+    "": {
+      "email": "",
+      "subscription_status": false,
+      "subscription_end": null,
+      "created_at": "2025-03-07T14:11:09.201567",
+      "last_updated": "2025-03-07T16:54:09.986978",
+      "login_count": 6,
+      "last_login": "2025-03-07T16:54:09.986978"
+    },
+    "bronihill8@gmail.com": {
+      "email": "bronihill8@gmail.com",
+      "subscription_status": true,
+      "subscription_end": "2025-04-07T13:14:50",
+      "created_at": "2025-03-07T14:11:32.372471",
+      "last_updated": "2025-03-07T15:44:03.850502",
+      "login_count": 8,
+      "last_login": "2025-03-07T15:30:24.553115"
+    }
+  }
+}
