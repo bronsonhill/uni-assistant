@@ -1,7 +1,7 @@
 streamlit>=1.40.0
 openai>=1.0.0
 python-dotenv>=1.0.0
-st-paywall
+st-paywall==0.1.8
 httpx-oauth>=0.13.0
-stripe
-pymongo
+stripe==11.6.0
+pymongo==4.11.2

@@ -1,5 +1,5 @@
 /venv
-/.streamlit
+/.streamlit/secrets.toml
 .env
-/features/.streamlit/
+/features/.streamlit/secrets.toml
 *.pyc
