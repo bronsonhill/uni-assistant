@@ -14,9 +14,7 @@ enableCORS = false
 enableWebsocketCompression = false
 maxUploadSize = 50
 # Set a very long lifetime for sessions (7 days = 604800 seconds)
-sessionOptions = {sessionState = {maxSessionLife = 604800}}
-# Disable browser cookies that could interfere with our custom solution
-cookieOptions = {xsrfCookie = false, sessionCookie = false}
+maxSessionAge = 604800
 # Increase request timeout for larger file uploads
 headless = false
 runOnSave = false
