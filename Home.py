@@ -12,24 +12,24 @@ load_dotenv()
 
 # Set server to use session persistence by the time the app loads
 # This is a fallback for the config.toml settings
-if not hasattr(st.session_state, "server_configured"):
-    try:
-        st._config.set_option("server.enableXsrfProtection", False)
-        st._config.set_option("server.enableCORS", False)
-        st._config.set_option("server.enableWebsocketCompression", False)
-        st._config.set_option("server.maxUploadSize", 50)  # 50 MB upload limit
+# if not hasattr(st.session_state, "server_configured"):
+#     try:
+#         st._config.set_option("server.enableXsrfProtection", False)
+#         st._config.set_option("server.enableCORS", False)
+#         st._config.set_option("server.enableWebsocketCompression", False)
+#         st._config.set_option("server.maxUploadSize", 50)  # 50 MB upload limit
         
-        # Set session expiration time (7 days = 604800 seconds)
-        st._config.set_option("server.maxSessionAge", 604800)
+#         # Set session expiration time (7 days = 604800 seconds)
+#         st._config.set_option("server.maxSessionAge", 604800)
         
-        # Output confirmation of configuration
-        print("Server configured with session persistence and XSRF protection disabled")
+#         # Output confirmation of configuration
+#         print("Server configured with session persistence and XSRF protection disabled")
         
-        st.session_state.server_configured = True
-    except Exception as e:
-        # If we can't set server options programmatically, we'll rely on config.toml
-        print(f"Error configuring server options programmatically: {e}")
-        print("Falling back to config.toml settings")
+#         st.session_state.server_configured = True
+#     except Exception as e:
+#         # If we can't set server options programmatically, we'll rely on config.toml
+#         print(f"Error configuring server options programmatically: {e}")
+#         print("Falling back to config.toml settings")
 
 # Instead of using cookies, let's focus on the server-side session persistence
 # which is provided by the configuration changes we've already made
