@@ -63,7 +63,7 @@ def setup_navigation():
     # Premium features
     add_ai = st.Page(render_add_ai, title="Add Cards with AI", icon="🤖")
     tutor = st.Page(render_tutor, title="Subject Tutor", icon="💬")
-    assessments = st.Page(render_assessments, title="Assessments", icon="📅")
+    assessments = st.Page(render_assessments, title="Assessments (Coming soon!)", icon="📅")
     
     # Account page
     account = st.Page(render_account, title="Account", icon="👤")

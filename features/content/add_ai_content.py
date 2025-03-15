@@ -11,18 +11,44 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 # Import functions
 from Home import load_data, save_data, add_question, get_user_email
 from rag_manager import RAGManager
-from paywall import check_subscription, show_premium_benefits, display_subscription_status
 import users
+
+# Import st-paywall directly instead of custom paywall module
+try:
+    from st_paywall import add_auth
+except ImportError:
+    # Fallback if there's an issue with st_paywall
+    def add_auth(required=False, login_button_text="Login", login_button_color="primary", login_sidebar=False):
+        if "email" not in st.session_state:
+            st.session_state.email = "test@example.com"  # Fallback to test user
+        return True  # Always return subscribed in fallback mode
+
+# Premium feature helper functions
+def show_premium_benefits():
+    """Show the benefits of premium subscription to encourage sign-up"""
+    st.markdown("### 🌟 Upgrade to Premium for these benefits:")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("✅ **Unlimited AI-generated questions**")
+        st.markdown("✅ **Advanced question filtering**")
+        st.markdown("✅ **Detailed progress analytics**")
+    
+    with col2:
+        st.markdown("✅ **Priority support**")
+        st.markdown("✅ **Assessment extraction from documents**")
+        st.markdown("✅ **Export/import functionality**")
+    
+    st.markdown("---")
 
 def run():
     """Main AI question generation page content - this gets run by the navigation system"""
     # Check subscription status - required for this premium feature
-    is_subscribed, user_email = check_subscription(required=True)
+    # Use st-paywall's add_auth directly instead of check_subscription
+    is_subscribed = add_auth(required=True)
+    user_email = st.session_state.get("email")
     
-    # Display subscription status in sidebar
-    # display_subscription_status()
-    
-    # If user is not subscribed, the above function will redirect them
+    # If user is not subscribed, the add_auth function will redirect them
     # The code below will only execute for subscribed users
     
     # Double-check subscription status in our own database

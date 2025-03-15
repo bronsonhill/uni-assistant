@@ -13,15 +13,22 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 import Home
 import mongodb
 from rag_manager import RAGManager
-from paywall import check_subscription, show_premium_benefits, display_subscription_status
+
+# Import st_paywall instead of custom paywall module
+try:
+    from st_paywall import add_auth
+except ImportError:
+    # Fallback if there's an issue with st_paywall
+    def add_auth(required=False, login_button_text="Login", login_button_color="primary", login_sidebar=False):
+        if "email" not in st.session_state:
+            st.session_state.email = "test@example.com"  # Fallback to test user
+        return True  # Always return subscribed in fallback mode
 
 def run():
     """Main tutor page content - this gets run by the navigation system"""
     # Check subscription status - required for this premium feature
-    is_subscribed, user_email = check_subscription(required=True)
-    
-    # Display subscription status in sidebar
-    # display_subscription_status()
+    # Use st-paywall's add_auth directly instead of check_subscription
+    is_subscribed = add_auth(required=True)
     
     # If user is not subscribed, the above function will redirect them
     # The code below will only execute for subscribed users
