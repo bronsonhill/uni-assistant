@@ -407,7 +407,7 @@ def run():
         """Create a new thread if one doesn't exist"""
         if st.session_state.thread_id is None:
             try:
-                thread = st.session_state.rag_manager.client.threads.create()
+                thread = st.session_state.rag_manager.client.beta.threads.create()
                 st.session_state.thread_id = thread.id
                 return thread.id
             except Exception as e:
@@ -420,7 +420,7 @@ def run():
         """Create or get an assistant that can access the selected course materials"""
         try:
             # Create a new assistant focused on explaining concepts
-            assistant = st.session_state.rag_manager.client.assistants.create(
+            assistant = st.session_state.rag_manager.client.beta.assistants.create(
                 name="Course Assistant",
                 instructions="""You are a helpful teaching assistant for university students.
     Your goal is to help students understand concepts from their course materials.
@@ -470,14 +470,14 @@ def run():
                 assistant_id = st.session_state.assistant_id
             
             # Add the user message to the thread
-            st.session_state.rag_manager.client.threads.messages.create(
+            st.session_state.rag_manager.client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
                 content=message
             )
             
             # Create a run
-            run = st.session_state.rag_manager.client.threads.runs.create(
+            run = st.session_state.rag_manager.client.beta.threads.runs.create(
                 thread_id=thread_id,
                 assistant_id=assistant_id,
                 stream=stream
@@ -499,13 +499,13 @@ def run():
                 # Wait for the run to complete without streaming
                 while run.status in ["queued", "in_progress"]:
                     time.sleep(1)
-                    run = st.session_state.rag_manager.client.threads.runs.retrieve(
+                    run = st.session_state.rag_manager.client.beta.threads.runs.retrieve(
                         thread_id=thread_id,
                         run_id=run.id
                     )
                 
                 # Get the latest messages (should include the assistant's response)
-                messages = st.session_state.rag_manager.client.threads.messages.list(
+                messages = st.session_state.rag_manager.client.beta.threads.messages.list(
                     thread_id=thread_id
                 )
                 
