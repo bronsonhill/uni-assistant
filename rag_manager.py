@@ -82,7 +82,7 @@ class RAGManager:
         
         # Try to list vector stores to see if it already exists
         try:
-            vector_stores = self.client.beta.vector_stores.list()
+            vector_stores = self.client.vector_stores.list()
             for store in vector_stores.data:
                 print(f"Checking OpenAI vector store: {store.name}")
                 if store.name == vector_store_name:
@@ -103,7 +103,7 @@ class RAGManager:
         # Create a new vector store
         try:
             print(f"Creating new vector store with name: {vector_store_name}")
-            vector_store = self.client.beta.vector_stores.create(
+            vector_store = self.client.vector_stores.create(
                 name=vector_store_name,
                 expires_after=None  # Don't expire
             )
@@ -235,7 +235,7 @@ class RAGManager:
             with open(temp_path, "rb") as file_stream:
                 print(f"Uploading file to OpenAI vector store")
                 # Upload and poll for completion
-                file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
+                file_batch = self.client.vector_stores.file_batches.upload_and_poll(
                     vector_store_id=vector_store_id,
                     files=[file_stream]
                 )
@@ -246,7 +246,7 @@ class RAGManager:
                 start_time = time.time()
                 while file_batch.status != "completed" and time.time() - start_time < timeout:
                     time.sleep(2)
-                    file_batch = self.client.beta.vector_stores.file_batches.retrieve(
+                    file_batch = self.client.vector_stores.file_batches.retrieve(
                         vector_store_id=vector_store_id,
                         file_batch_id=file_batch.id
                     )
@@ -279,7 +279,7 @@ class RAGManager:
             List of file information dicts
         """
         try:
-            vector_store_files = self.client.beta.vector_stores.files.list(
+            vector_store_files = self.client.vector_stores.files.list(
                 vector_store_id=vector_store_id
             )
             
@@ -324,7 +324,7 @@ class RAGManager:
             File information dict
         """
         try:
-            file = self.client.beta.vector_stores.files.retrieve(
+            file = self.client.vector_stores.files.retrieve(
                 vector_store_id=vector_store_id,
                 file_id=file_id
             )
@@ -363,7 +363,7 @@ class RAGManager:
             Boolean indicating success
         """
         try:
-            deleted_file = self.client.beta.vector_stores.files.delete(
+            deleted_file = self.client.vector_stores.files.delete(
                 vector_store_id=vector_store_id,
                 file_id=file_id
             )
@@ -388,7 +388,7 @@ class RAGManager:
             print(f"Attempting to delete vector store with ID: {vector_store_id}")
             
             # Delete the vector store using the OpenAI API
-            result = self.client.beta.vector_stores.delete(
+            result = self.client.vector_stores.delete(
                 vector_store_id=vector_store_id
             )
             
@@ -544,7 +544,7 @@ class RAGManager:
         """
         print(f"Creating assistant with vector_store_id: {vector_store_id}")
         try:
-            assistant = self.client.beta.assistants.create(
+            assistant = self.client.assistants.create(
                 name="Study Question Generator",
                 instructions="""You are an expert teacher creating study questions for university students.
 Generate thought-provoking questions based on the provided content from course materials.
@@ -655,7 +655,7 @@ IMPORTANT: Avoid duplicating these existing questions:
 {existing_qs_str}
 """
         
-        thread = self.client.beta.threads.create(
+        thread = self.client.threads.create(
             messages=[
                 {
                     "role": "user",
@@ -666,7 +666,7 @@ IMPORTANT: Avoid duplicating these existing questions:
         
         # Create a run with instructions to format responses as JSON
         print(f"Creating run with thread ID: {thread.id} and assistant ID: {assistant.id}")
-        run = self.client.beta.threads.runs.create(
+        run = self.client.threads.runs.create(
             thread_id=thread.id,
             assistant_id=assistant.id,
             instructions="""When generating questions, please format your response as a valid JSON object with the following structure:
@@ -690,7 +690,7 @@ Make sure to parse relevant information from the files using the file_search too
         start_time = time.time()
         while run.status not in ["completed", "failed", "expired", "cancelled"] and time.time() - start_time < timeout:
             time.sleep(2)
-            run = self.client.beta.threads.runs.retrieve(
+            run = self.client.threads.runs.retrieve(
                 thread_id=thread.id,
                 run_id=run.id
             )
@@ -699,7 +699,7 @@ Make sure to parse relevant information from the files using the file_search too
             raise ValueError(f"Question generation failed with status: {run.status}")
         
         # Get the messages
-        messages = self.client.beta.threads.messages.list(
+        messages = self.client.threads.messages.list(
             thread_id=thread.id
         )
         

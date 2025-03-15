@@ -4,40 +4,13 @@ import os
 import sys
 from typing import Dict, Optional
 from dotenv import load_dotenv
-from paywall import check_subscription, show_premium_benefits, display_subscription_status, handle_oauth_login
 import users
+
+# Import our centralized auth module
+import auth
 
 # Load environment variables from .env file if it exists
 load_dotenv()
-
-# Set server to use session persistence by the time the app loads
-# This is a fallback for the config.toml settings
-# if not hasattr(st.session_state, "server_configured"):
-#     try:
-#         st._config.set_option("server.enableXsrfProtection", False)
-#         st._config.set_option("server.enableCORS", False)
-#         st._config.set_option("server.enableWebsocketCompression", False)
-#         st._config.set_option("server.maxUploadSize", 50)  # 50 MB upload limit
-        
-#         # Set session expiration time (7 days = 604800 seconds)
-#         st._config.set_option("server.maxSessionAge", 604800)
-        
-#         # Output confirmation of configuration
-#         print("Server configured with session persistence and XSRF protection disabled")
-        
-#         st.session_state.server_configured = True
-#     except Exception as e:
-#         # If we can't set server options programmatically, we'll rely on config.toml
-#         print(f"Error configuring server options programmatically: {e}")
-#         print("Falling back to config.toml settings")
-
-# Instead of using cookies, let's focus on the server-side session persistence
-# which is provided by the configuration changes we've already made
-
-# We'll remove the cookie manager entirely to fix the errors
-
-# The config.toml and streamlit server configuration should be sufficient
-# to maintain session state across refreshes
 
 # Data structure: {subject: {week: [{"question": "...", "answer": "..."}]}}
 DATA_FILE = "queue_cards.json"
@@ -367,20 +340,25 @@ def render_home_page():
     # Main title
     st.title("📚 Study Legend")
     
-    # Show welcome message for new users
-    if st.session_state.get("show_welcome", False):
-        email = st.session_state.get("welcome_email", "")
-        if email:
-            st.success(f"👋 Welcome to Study Legend, {email}! Your account has been created successfully.")
-            # Clear the welcome flag after showing it once
-            st.session_state.show_welcome = False
+    # Show welcome message using the centralized auth module
+    auth.show_welcome_message()
+    
+    # Get user email if logged in
+    user_email = auth.get_current_user()
+    is_logged_in = auth.is_logged_in()
     
     # Show welcome message with user email if authenticated
-    if 'email' in st.session_state:
-        st.markdown(f"#### Welcome, {st.session_state.email}! 👋")
+    if is_logged_in:
+        st.markdown(f"#### Welcome, {user_email}! 👋")
+    else:
+        st.markdown("""
+        #### 👋 Welcome to Study Legend!
+        
+        Sign in to start creating flashcards, practicing, and using AI to enhance your studying.
+        """)
     
     st.markdown("""
-    Welcome to Study Legend! This app helps you study like a legend with the help of AI.
+    Study Legend helps you study effectively with the help of AI.
     
     The sidebar has navigation for your main activities:
     - **Add Queue Cards with AI**: Generate questions from your lecture notes or course materials.
@@ -394,10 +372,9 @@ def render_home_page():
         st.success("🌟 **Premium Subscription Active** - Enjoy all premium features!")
         
         # Show subscription details if user is logged in
-        if 'email' in st.session_state:
-            email = st.session_state.email
+        if is_logged_in:
             # Use cached info since subscription was already verified
-            subscription_info = users.get_subscription_info(email, skip_stripe=True)
+            subscription_info = users.get_subscription_info(user_email, skip_stripe=True)
             
             if subscription_info and subscription_info["active"]:
                 expiry_date = subscription_info.get("end_date", "Unknown")
@@ -413,10 +390,52 @@ def render_home_page():
                 
                 st.info(f"📅 Your subscription is active until **{formatted_date}** ({days_remaining} days remaining)")
     else:
-        st.info("You're using the free version of Study Legend. Consider upgrading to Premium for additional features.")
-        show_premium_benefits()
+        st.info("Study Legend offers both free and premium features. Sign in to get started!")
+        
+        # Show premium benefits
+        st.markdown("### 🌟 Premium Features:")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("✅ **Unlimited AI-generated questions**")
+            st.markdown("✅ **Advanced question filtering**")
+            st.markdown("✅ **Detailed progress analytics**")
+        
+        with col2:
+            st.markdown("✅ **Priority support**")
+            st.markdown("✅ **Assessment extraction from documents**")
+            st.markdown("✅ **Export/import functionality**")
+        
+        st.markdown("---")
     
-    # Stats
+    # Stats - only show if logged in
+    if is_logged_in:
+        display_user_stats()
+    else:
+        st.markdown("### 🔍 Preview")
+        st.markdown("""
+        Sign in to create your own flashcards and track your progress. With Study Legend, you can:
+        
+        - Create flashcards manually or using AI
+        - Practice with spaced repetition
+        - Get AI feedback on your answers
+        - Track your progress over time
+        - Chat with a tutor that knows your course content
+        """)
+    
+    # If not logged in, show prominent login button
+    if not is_logged_in:
+        st.markdown("---")
+        st.markdown("### Get Started")
+        add_auth(
+            required=False,
+            login_button_text="Sign in to Study Legend",
+            login_button_color="#FF6F00",
+            login_sidebar=False
+        )
+        
+def display_user_stats():
+    """Display user statistics"""
     st.subheader("Your Question Stats")
     
     total_questions = 0
@@ -452,7 +471,6 @@ def render_home_page():
 # Main app
 def main():
     # Set the page config with the same settings across the entire app
-    # This is crucial for the navigation to work correctly
     try:
         # Only set page config if it hasn't been set already
         if not st.session_state.get("page_config_set", False):
@@ -467,23 +485,15 @@ def main():
         # If there's an error (likely because page config is already set), just continue
         print(f"Note: Page config may have already been set: {e}")
     
-    # Explicitly check for OAuth login
-    # This ensures we record the login even if the user just authenticated
-    handle_oauth_login()
+    # Check authentication but don't require it for viewing
+    user_email = auth.require_auth(required=False)
     
-    # Check subscription status first (before navigation)
-    # Only force verification on first page load (Home.py)
-    # This ensures we check Stripe at least once when the app is started
-    force_first_check = "subscription_verified_at" not in st.session_state
-    
-    # This will set st.session_state.is_subscribed which is used by navigation
-    is_subscribed, user_email = check_subscription(required=False, force_verify=force_first_check)
-    
-    # Display subscription status in sidebar
-    display_subscription_status()
-    
-    # Always store user email in session state for consistent access
+    # If user is authenticated, check subscription status
+    is_subscribed = False
     if user_email:
+        is_subscribed = auth.check_subscription(user_email)
+        
+        # Always store user email in session state for consistent access
         st.session_state.user_email = user_email
     
     # Use our helper function to get the most reliable email
@@ -500,7 +510,7 @@ def main():
         st.session_state.edit_week = ""
     if "edit_idx" not in st.session_state:
         st.session_state.edit_idx = -1
-    if "rag_manager" not in st.session_state:
+    if "rag_manager" not in st.session_state and email_to_use:
         st.session_state.rag_manager = init_rag_manager(email_to_use)
     if "current_view" not in st.session_state:
         st.session_state.current_view = "home"

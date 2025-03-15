@@ -1,4 +1,5 @@
 import streamlit as st
+import auth
 
 def render_home():
     """Render the home page content"""
@@ -48,8 +49,8 @@ def setup_navigation():
     Returns:
         pg: The navigation page object that should be run
     """
-    # Use email session variable to determine login status
-    is_logged_in = 'email' in st.session_state
+    # Use auth module to check login and subscription status
+    is_logged_in = auth.is_logged_in()
     is_subscribed = st.session_state.get('is_subscribed', False)
     
     # Home page is always available
@@ -63,33 +64,26 @@ def setup_navigation():
     # Premium features
     add_ai = st.Page(render_add_ai, title="Add Cards with AI", icon="🤖")
     tutor = st.Page(render_tutor, title="Subject Tutor", icon="💬")
-    assessments = st.Page(render_assessments, title="Assessments (Coming soon!)", icon="📅")
+    assessments = st.Page(render_assessments, title="Assessments", icon="📅")
     
     # Account page
     account = st.Page(render_account, title="Account", icon="👤")
     
-    # Create navigation structure based on login status
-    if is_logged_in:
-        if is_subscribed:
-            # Full access for subscribed users
-            navigation_structure = {
-                "Main Features": [home, add_ai, practice, tutor, assessments],
-                "Utilities": [manage, add_manual],
-                "Account": [account]
-            }
-        else:
-            # Restricted access for logged in but not subscribed users
-            navigation_structure = {
-                "Main Features": [home, practice],
-                "Utilities": [manage, add_manual],
-                "Premium Features": [add_ai, tutor, assessments],
-                "Account": [account]
-            }
+    # Make all features visible in the navigation, regardless of login status
+    # The individual features will handle authentication requirements themselves
+    if is_subscribed:
+        # Full access structure for subscribed users
+        navigation_structure = {
+            "Main Features": [home, add_ai, practice, tutor, assessments],
+            "Utilities": [manage, add_manual],
+            "Account": [account]
+        }
     else:
-        # Most basic structure for not logged in users
+        # Structure with premium features marked separately
         navigation_structure = {
             "Main Features": [home, practice],
             "Utilities": [manage, add_manual],
+            "Premium Features": [add_ai, tutor, assessments],
             "Account": [account]
         }
     

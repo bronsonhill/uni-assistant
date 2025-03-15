@@ -11,10 +11,11 @@ def render_account_page():
     
     # Force verification on account page to ensure subscription status is fresh
     # This helps ensure users always see accurate subscription details on this page
-    is_subscribed, user_email = check_subscription(required=False, force_verify=True)
+    # is_subscribed, user_email = check_subscription(required=False, force_verify=True)
     
     # If user is not logged in, show login options
-    if not user_email:
+    user_email = st.session_state.get("email")
+    if user_email:
         st.markdown("### Login or Sign Up")
         st.info("Please log in or sign up to access your account and subscription details.")
         
@@ -25,15 +26,7 @@ def render_account_page():
         - Subscribe to premium features
         - Track your learning progress
         """)
-        
-        
-        add_auth(
-            required=True,
-            login_button_text="Login to Study Legend",
-            login_button_color="#FF6F00",
-            login_sidebar=False  # Show directly in the page, not in sidebar
-        )
-        
+
         # Note about sidebar login
         st.markdown("👈 You can also use the login button in the sidebar to sign in.")
         
@@ -180,15 +173,11 @@ def render_account_page():
         
         **Q: How do I cancel my subscription?**  
         A: You can cancel your subscription through your payment provider account. Your premium access will continue until the end of your billing period.
-        
-        **Q: Can I use this app offline?**  
-        A: The app requires an internet connection to access the AI features. Basic question management works offline.
-        
+
         #### Contact Support
         
         For additional help, please contact:
-        - Email: support@studylegend.com
-        - Twitter: @StudyLegendApp
+        - Email: bronson.hill@yahoo.com.au
         """)
         
         # Feedback form

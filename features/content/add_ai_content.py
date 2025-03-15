@@ -12,16 +12,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from Home import load_data, save_data, add_question, get_user_email
 from rag_manager import RAGManager
 import users
-
-# Import st-paywall directly instead of custom paywall module
-try:
-    from st_paywall import add_auth
-except ImportError:
-    # Fallback if there's an issue with st_paywall
-    def add_auth(required=False, login_button_text="Login", login_button_color="primary", login_sidebar=False):
-        if "email" not in st.session_state:
-            st.session_state.email = "test@example.com"  # Fallback to test user
-        return True  # Always return subscribed in fallback mode
+from features.content.base_content import show_preview_mode
+import auth
 
 # Premium feature helper functions
 def show_premium_benefits():
@@ -41,22 +33,302 @@ def show_premium_benefits():
     
     st.markdown("---")
 
+def _render_bio_question_1():
+    """Helper function to render the first biology question"""
+    with st.container(border=True):
+        # Question header with title and checkbox in columns
+        header_col1, header_col2 = st.columns([3, 1])
+        with header_col1:
+            st.markdown("### Question 1")
+        with header_col2:
+            st.checkbox("Include", value=True, disabled=True, key="demo_q1_include")
+        
+        # Question content
+        st.markdown("**Q: Explain the difference between mitosis and meiosis in cell division.**")
+        
+        # Answer in expander
+        with st.expander("View Answer"):
+            st.markdown("""
+            Mitosis is a type of cell division that results in two daughter cells, each with the same number and type of chromosomes as the parent cell. It's primarily used for growth, repair, and asexual reproduction.
+            
+            Meiosis, on the other hand, is a type of cell division that results in four daughter cells, each with half the number of chromosomes as the parent cell. It's specifically used for sexual reproduction, creating gametes (eggs or sperm) that combine during fertilization.
+            
+            Key differences include:
+            - Mitosis produces two identical diploid cells, while meiosis produces four haploid cells
+            - Mitosis involves one division cycle, while meiosis involves two
+            - Mitosis doesn't involve crossing over or genetic recombination, while meiosis does
+            - Mitosis maintains genetic stability, while meiosis increases genetic diversity
+            """)
+        
+        # Edit button
+        st.button("Edit", key="demo_q1_edit", disabled=True)
+
+def _render_bio_question_2():
+    """Helper function to render the second biology question"""
+    with st.container(border=True):
+        # Question header with title and checkbox in columns
+        header_col1, header_col2 = st.columns([3, 1])
+        with header_col1:
+            st.markdown("### Question 2")
+        with header_col2:
+            st.checkbox("Include", value=True, disabled=True, key="demo_q2_include")
+        
+        # Question content
+        st.markdown("**Q: Describe the structure and function of chloroplasts in plant cells.**")
+        
+        # Answer in expander
+        with st.expander("View Answer"):
+            st.markdown("""
+            Chloroplasts are organelles found in plant cells and algae that are responsible for photosynthesis. Their structure includes:
+            
+            - Double membrane: Outer membrane is permeable to small molecules, while the inner membrane controls the passage of materials
+            - Stroma: Fluid-filled space inside the inner membrane containing enzymes for the Calvin cycle
+            - Thylakoids: Flattened disc-shaped structures containing chlorophyll and other photosynthetic pigments
+            - Grana: Stacks of thylakoids that increase the surface area for light absorption
+            - Chlorophyll: Green pigment that captures light energy
+            
+            Function:
+            - Convert light energy into chemical energy (ATP and NADPH)
+            - Use this energy to fix carbon dioxide into glucose through the Calvin cycle
+            - Produce oxygen as a byproduct of photosynthesis
+            - Store energy in the form of starch
+            
+            Chloroplasts have their own DNA and can replicate independently, supporting the endosymbiotic theory that they were once free-living cyanobacteria.
+            """)
+        
+        # Edit button
+        st.button("Edit", key="demo_q2_edit", disabled=True)
+
+def _render_bio_question_3():
+    """Helper function to render the third biology question"""
+    with st.container(border=True):
+        # Question header with title and checkbox in columns
+        header_col1, header_col2 = st.columns([3, 1])
+        with header_col1:
+            st.markdown("### Question 3")
+        with header_col2:
+            st.checkbox("Include", value=True, disabled=True, key="demo_q3_include")
+        
+        # Question content
+        st.markdown("**Q: What are the main components of the cell membrane and how does its structure relate to its function?**")
+        
+        # Answer in expander
+        with st.expander("View Answer"):
+            st.markdown("""
+            The cell membrane (plasma membrane) is a phospholipid bilayer with embedded proteins that forms the boundary of all cells. Its main components include:
+            
+            1. Phospholipids: Molecules with hydrophilic (water-loving) heads and hydrophobic (water-repelling) tails that arrange in a bilayer
+            2. Membrane proteins: Can be integral (embedded in the membrane) or peripheral (attached to the surface)
+            3. Cholesterol: Provides stability and fluidity in animal cell membranes
+            4. Glycoproteins and glycolipids: Carbohydrate-attached molecules important for cell recognition
+            
+            The structure relates to function through the fluid mosaic model:
+            - Selectively permeable: Controls what enters and exits the cell
+            - Fluid nature: Allows lateral movement of components, adaptation to different conditions
+            - Embedded proteins: Serve as channels, pumps, receptors, and enzymes
+            - Recognition sites: Allow for cell-cell communication and immune system function
+            
+            This structure enables the membrane to maintain cell homeostasis while facilitating necessary interactions with the environment.
+            """)
+        
+        # Edit button
+        st.button("Edit", key="demo_q3_edit", disabled=True)
+
+def show_demo_content():
+    """Display demo content for users in preview mode"""
+    # Display a sample interface to show how the feature works
+    st.subheader("Preview: AI-Generated Questions")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Course Material")
+        
+        # Sample subject selection
+        st.selectbox(
+            "Select subject",
+            options=["Biology", "Chemistry", "Physics"],
+            index=0,
+            disabled=True,
+            key="demo_subject"
+        )
+        
+        # Sample week selection
+        st.selectbox(
+            "Select week",
+            options=["1", "2", "3"],
+            index=0,
+            disabled=True,
+            key="demo_week"
+        )
+        
+        # Sample questions slider
+        st.slider(
+            "Number of questions to generate",
+            min_value=1,
+            max_value=10,
+            value=5,
+            disabled=True,
+            key="demo_num_questions"
+        )
+        
+        # Sample file uploader
+        st.file_uploader(
+            "Upload a PDF or text file",
+            type=["pdf", "txt"],
+            disabled=True,
+            key="demo_file_uploader"
+        )
+        
+        # Sample generate button
+        st.button(
+            "Upload & Generate Questions",
+            disabled=True,
+            key="demo_generate_button"
+        )
+    
+    with col2:
+        st.subheader("Sample Generated Questions")
+        st.success("Generated 3 questions!")
+        
+        # Render each question using separate helper functions to avoid complexity
+        _render_bio_question_1()
+        st.empty()  # Add a small space between questions
+        _render_bio_question_2()
+        st.empty()  # Add a small space between questions
+        _render_bio_question_3()
+        
+        # Add selected questions button at the bottom
+        st.button("Add Selected Questions", type="primary", disabled=True, key="demo_add_selected")
+
+def show_kb_demo_content():
+    """Display demo content for the Knowledge Base Management tab for users in preview mode"""
+    st.write("The following subject/week combinations have knowledge bases:")
+    
+    # Sample subject with vector stores
+    st.write("**Biology**")
+    
+    # Week 1 example
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.write("- Week 1: 3 tracked uploads")
+    with col2:
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            st.button("Manage Files", key="demo_manage_bio_week1", disabled=True, use_container_width=True)
+        with btn_col2:
+            st.button("🗑️ Delete", key="demo_delete_bio_week1", disabled=True, type="secondary", use_container_width=True)
+    
+    # Week 2 example
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.write("- Week 2: 1 tracked upload")
+    with col2:
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            st.button("Manage Files", key="demo_manage_bio_week2", disabled=True, use_container_width=True)
+        with btn_col2:
+            st.button("🗑️ Delete", key="demo_delete_bio_week2", disabled=True, type="secondary", use_container_width=True)
+    
+    # Sample Law subject 
+    st.write("**Law**")
+    
+    # Week 1 example
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.write("- Week 1: 2 tracked uploads")
+    with col2:
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            st.button("Manage Files", key="demo_manage_law_week1", disabled=True, use_container_width=True)
+        with btn_col2:
+            st.button("🗑️ Delete", key="demo_delete_law_week1", disabled=True, type="secondary", use_container_width=True)
+    
+    # About knowledge bases section
+    st.markdown("""
+    ### About Knowledge Bases
+    
+    This feature creates and maintains persistent knowledge bases for each subject/week combination. 
+    
+    **Benefits:**
+    - Files are processed and stored in a vector database
+    - Content is preserved between sessions
+    - Question generation improves as more content is added
+    - Questions are more relevant to the specific course material
+    
+    **How it works:**
+    1. When you upload a file, it's processed and added to the knowledge base
+    2. The knowledge base is stored securely for persistence across sessions
+    3. Questions are generated using a RAG (Retrieval-Augmented Generation) approach
+    4. This means the AI retrieves relevant content before generating questions
+    """)
+
 def run():
     """Main AI question generation page content - this gets run by the navigation system"""
-    # Check subscription status - required for this premium feature
-    # Use st-paywall's add_auth directly instead of check_subscription
-    is_subscribed = add_auth(required=True)
-    user_email = st.session_state.get("email")
+    st.title("🤖 AI-Generated Questions")
     
-    # If user is not subscribed, the add_auth function will redirect them
-    # The code below will only execute for subscribed users
+    # Check if user is authenticated and subscribed
+    user_email = auth.get_current_user()
+    is_authenticated = auth.is_logged_in()
+    is_subscribed = False
     
-    # Double-check subscription status in our own database
-    if user_email and not users.check_subscription_active(user_email):
-        st.warning("Your subscription appears to be inactive. Please contact support if this is incorrect.")
-        show_premium_benefits()
-        st.stop()
+    if is_authenticated:
+        is_subscribed = auth.check_subscription(user_email)
+    
+    # Handle different access scenarios
+    if not is_authenticated:
+        # Show preview mode for unauthenticated users
+        show_preview_mode(
+            "AI Question Generator",
+            """
+            Upload your lecture notes or course materials, and let AI generate study questions for you.
+            The system builds a knowledge base for each subject and week, allowing for more relevant questions.
+            
+            Files you upload will also be available to the assistant chat bot, making it more knowledgeable
+            and tailored to your subject content.
+            """
+        )
         
+        # Create tabs for demo content
+        demo_tab1, demo_tab2 = st.tabs(["Generate Questions", "Manage Knowledge Base"])
+        
+        with demo_tab1:
+            # Show demo content for questions generation
+            show_demo_content()
+        
+        with demo_tab2:
+            # Show demo content for knowledge base management
+            show_kb_demo_content()
+            
+        return
+    
+    if not is_subscribed:
+        # Show premium feature notice for authenticated but non-subscribed users
+        st.markdown("""
+        Generate questions from your lecture notes or course materials with AI.
+        Upload your files and let the system create tailored study questions.
+        """)
+        
+        st.warning("This is a premium feature that requires a subscription.")
+        show_premium_benefits()
+        
+        # Create tabs for demo content
+        demo_tab1, demo_tab2 = st.tabs(["Generate Questions", "Manage Knowledge Base"])
+        
+        with demo_tab1:
+            # Show demo content for questions generation
+            show_demo_content()
+        
+        with demo_tab2:
+            # Show demo content for knowledge base management
+            show_kb_demo_content()
+        
+        # Add prominent upgrade button
+        st.button("Upgrade to Premium", type="primary", disabled=True)
+        return
+    
+    # If we get here, user is authenticated and subscribed - proceed with full functionality
+    
     # Get the most reliable user email
     user_email = get_user_email() or user_email
     
@@ -108,19 +380,17 @@ def run():
     if "delete_vector_store_week" not in st.session_state:
         st.session_state.delete_vector_store_week = None
     
-    st.title("🤖 AI-Generated Questions")
-    
-    if rag_manager is None:
-        st.error("Could not initialize the RAG Manager. Make sure you have the required dependencies installed.")
-        st.info("Run: `pip install sentence-transformers chromadb pdfplumber`")
-        st.stop()
-    
     st.markdown("""
     Upload your lecture notes or course materials, and let AI generate study questions for you. 
     The system will build a knowledge base for each subject and week, allowing for more relevant questions.
     
     The files you upload will also be available to the assistant chat bot making it more knowledgeable and tailored to your subject content.
     """)
+    
+    if rag_manager is None:
+        st.error("Could not initialize the RAG Manager. Make sure you have the required dependencies installed.")
+        st.info("Run: `pip install sentence-transformers chromadb pdfplumber`")
+        st.stop()
     
     # Helper functions
     def process_uploaded_file():

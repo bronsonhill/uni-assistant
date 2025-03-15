@@ -11,48 +11,291 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 # Import common modules
 from mongodb import assessments
-import users
+from features.content.base_content import require_premium, format_date, get_user_email, show_preview_mode
 
-# Import st-paywall directly instead of custom paywall module
-try:
-    from st_paywall import add_auth
-except ImportError:
-    # Fallback if there's an issue with st_paywall
-    def add_auth(required=False, login_button_text="Login", login_button_color="primary", login_sidebar=False):
-        if "email" not in st.session_state:
-            st.session_state.email = "test@example.com"  # Fallback to test user
-        return True  # Always return subscribed in fallback mode
-
-# Premium feature helper functions
 def show_premium_benefits():
     """Show the benefits of premium subscription to encourage sign-up"""
     st.markdown("### 🌟 Upgrade to Premium for these benefits:")
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("✅ **Unlimited AI-generated questions**")
-        st.markdown("✅ **Advanced question filtering**")
-        st.markdown("✅ **Detailed progress analytics**")
+        st.markdown("✅ **Track all your upcoming assessments**")
+        st.markdown("✅ **Get automatic deadline reminders**")
+        st.markdown("✅ **Prioritize study time effectively**")
     
     with col2:
-        st.markdown("✅ **Priority support**")
-        st.markdown("✅ **Assessment extraction from documents**")
-        st.markdown("✅ **Export/import functionality**")
+        st.markdown("✅ **Mark assessments as complete**")
+        st.markdown("✅ **Review past assessment history**")
+        st.markdown("✅ **Get AI-powered study recommendations**")
     
     st.markdown("---")
 
+def show_demo_content():
+    """Display demo content for users in preview mode"""
+    # Display sample upcoming assessments
+    st.subheader("Preview: Upcoming Assessments")
+    
+    # Add subject selector
+    selected_subject = st.selectbox(
+        "Select Subject",
+        options=["Computer Science", "Biology", "Law"],
+        index=2,  # Default to Law
+        key="demo_assessment_subject"
+    )
+    
+    # Show assessments based on selected subject
+    if selected_subject == "Computer Science":
+        # Computer Science assessments
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Data Structures Final Exam")
+                st.caption("Subject: Computer Science")
+                st.write("Covers trees, graphs, hash tables, and algorithm complexity analysis")
+                st.warning("**Due soon:** May 12, 2023 (3 days remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="cs_complete_1", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="cs_delete_1", disabled=True)
+        
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Software Engineering Project")
+                st.caption("Subject: Computer Science")
+                st.write("Group project to build a full-stack web application with documentation")
+                st.info("**Due:** June 5, 2023 (25 days remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="cs_complete_2", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="cs_delete_2", disabled=True)
+        
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Database Systems Quiz")
+                st.caption("Subject: Computer Science")
+                st.write("Quiz on SQL optimization, normalization, and transaction processing")
+                st.info("**Due:** May 25, 2023 (15 days remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="cs_complete_3", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="cs_delete_3", disabled=True)
+                
+        # Show demo add assessment form for CS
+        st.subheader("Preview: Add New Assessment")
+        
+        with st.form("demo_cs_assessment", clear_on_submit=False):
+            st.text_input("Assessment Title", value="Machine Learning Project", key="cs_title", disabled=True)
+            st.text_input("Subject", value="Computer Science", key="cs_subject", disabled=True)
+            st.text_area("Description (Optional)", value="Implement and train a neural network for image classification", key="cs_desc", disabled=True)
+            st.date_input("Due Date", key="cs_date", disabled=True)
+            st.form_submit_button("Add Assessment", disabled=True)
+            
+    elif selected_subject == "Biology":
+        # Biology assessments
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Cellular Biology Midterm")
+                st.caption("Subject: Biology")
+                st.write("Covers cell structure, organelles, membrane transport, and cellular respiration")
+                st.warning("**Due soon:** May 10, 2023 (1 day remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="bio_complete_1", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="bio_delete_1", disabled=True)
+        
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Genetics Lab Report")
+                st.caption("Subject: Biology")
+                st.write("Analysis of Drosophila melanogaster crossing experiments and gene mapping")
+                st.info("**Due:** May 30, 2023 (20 days remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="bio_complete_2", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="bio_delete_2", disabled=True)
+        
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Ecosystem Analysis Project")
+                st.caption("Subject: Biology")
+                st.write("Field work and report on local ecosystem biodiversity and interactions")
+                st.info("**Due:** June 15, 2023 (35 days remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="bio_complete_3", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="bio_delete_3", disabled=True)
+                
+        # Show demo add assessment form for Biology
+        st.subheader("Preview: Add New Assessment")
+        
+        with st.form("demo_bio_assessment", clear_on_submit=False):
+            st.text_input("Assessment Title", value="Molecular Biology Final Exam", key="bio_title", disabled=True)
+            st.text_input("Subject", value="Biology", key="bio_subject", disabled=True)
+            st.text_area("Description (Optional)", value="Comprehensive exam covering DNA replication, transcription, and translation", key="bio_desc", disabled=True)
+            st.date_input("Due Date", key="bio_date", disabled=True)
+            st.form_submit_button("Add Assessment", disabled=True)
+    
+    else:  # Law assessments (original content)
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Constitutional Law Exam")
+                st.caption("Subject: Law")
+                st.write("Covers judicial review, federalism, separation of powers, and civil liberties")
+                st.warning("**Due soon:** May 15, 2023 (3 days remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="law_complete_1", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="law_delete_1", disabled=True)
+        
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Legal Brief Submission")
+                st.caption("Subject: Law")
+                st.write("3000-word legal brief on a landmark Supreme Court case")
+                st.info("**Due:** June 2, 2023 (21 days remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="law_complete_2", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="law_delete_2", disabled=True)
+        
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1])
+            
+            with cols[0]:
+                st.subheader("Moot Court Competition")
+                st.caption("Subject: Law")
+                st.write("Prepare oral arguments for mock appellate case on intellectual property")
+                st.info("**Due:** June 15, 2023 (34 days remaining)")
+            
+            with cols[1]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Mark Complete", key="law_complete_3", disabled=True)
+            
+            with cols[2]:
+                st.write("") # Spacing
+                st.write("") # Spacing
+                st.button("Delete", key="law_delete_3", disabled=True)
+        
+        # Show demo add assessment form for Law
+        st.subheader("Preview: Add New Assessment")
+        
+        with st.form("demo_law_assessment", clear_on_submit=False):
+            st.text_input("Assessment Title", value="Criminal Law Final Exam", key="law_title", disabled=True)
+            st.text_input("Subject", value="Law", key="law_subject", disabled=True)
+            st.text_area("Description (Optional)", value="Covers criminal liability, defenses, and sentencing guidelines", key="law_desc", disabled=True)
+            st.date_input("Due Date", key="law_date", disabled=True)
+            st.form_submit_button("Add Assessment", disabled=True)
+
 def run():
     """Main assessments page content"""
-    # Check subscription status - required for this premium feature
-    # Use st-paywall's add_auth directly instead of check_subscription
-    is_subscribed = add_auth(required=True)
-    user_email = st.session_state.get("email")
-    
-    # If user is not subscribed, the add_auth function will redirect them
-    # The code below will only execute for subscribed users
-    
     st.title("📅 Assessments")
     st.write("Track your upcoming assessments and prioritize your study time.")
+    
+    # Check if user is authenticated and subscribed using session state directly
+    user_email = st.session_state.get("email")
+    is_authenticated = user_email is not None
+    is_subscribed = st.session_state.get("user_subscribed", False)
+    
+    # Handle different access scenarios
+    if not is_authenticated:
+        # Show preview mode for unauthenticated users
+        show_preview_mode(
+            "Assessment Tracker",
+            """
+            Keep track of all your upcoming assessments in one place.
+            Get reminders for due dates, mark assessments as complete,
+            and organize your study time effectively.
+            
+            Never miss a deadline again with this powerful tool.
+            """
+        )
+        
+        # Show demo content for unauthenticated users
+        show_demo_content()
+        return
+    
+    if not is_subscribed:
+        # Show premium feature notice for authenticated but non-subscribed users
+        st.markdown("""
+        Track your upcoming assessments, get deadline reminders, and prioritize your study time
+        effectively with this powerful assessment tracker.
+        """)
+        
+        st.warning("This is a premium feature that requires a subscription.")
+        show_premium_benefits()
+        
+        # Show demo content for non-subscribed users
+        show_demo_content()
+        
+        # Add prominent upgrade button
+        st.button("Upgrade to Premium", type="primary", disabled=True)
+        return
+    
+    # If we get here, user is authenticated and subscribed - proceed with full functionality
     
     if not user_email:
         st.warning("Please log in to use this feature.")
@@ -221,11 +464,3 @@ def add_assessment_form(user_email: str):
                 st.success(f"Added assessment: {title}")
                 st.session_state.assessments = assessments.get_user_assessments(user_email)
                 st.rerun()
-
-def format_date(date_str: str) -> str:
-    """Format a date string for display"""
-    try:
-        date_obj = datetime.fromisoformat(date_str)
-        return date_obj.strftime("%b %d, %Y")
-    except (ValueError, TypeError):
-        return "Not specified"

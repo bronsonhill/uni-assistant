@@ -24,14 +24,342 @@ except ImportError:
             st.session_state.email = "test@example.com"  # Fallback to test user
         return True  # Always return subscribed in fallback mode
 
+# Import base content functions
+from features.content.base_content import show_preview_mode
+
+def show_premium_benefits():
+    """Show the benefits of premium subscription to encourage sign-up"""
+    st.markdown("### 🌟 Upgrade to Premium for these benefits:")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("✅ **Chat with a personal study buddy**")
+        st.markdown("✅ **Get explanations based on your materials**")
+        st.markdown("✅ **Track conversation history**")
+    
+    with col2:
+        st.markdown("✅ **Customized to your course content**")
+        st.markdown("✅ **Works with all your study materials**")
+        st.markdown("✅ **Save and rename conversations**")
+    
+    st.markdown("---")
+
+def show_demo_content():
+    """Display demo content for users in preview mode"""
+    # Display a sample chat interface to show how the feature works
+    st.subheader("Preview: Subject Tutor Chat")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.subheader("Course Material")
+        
+        # Sample subject selection
+        selected_subject = st.selectbox(
+            "Select subject",
+            options=["Computer Science", "Biology", "Law"],
+            index=0,
+            key="demo_subject_selection"
+        )
+        
+        # Sample week selection
+        st.selectbox(
+            "Select week",
+            options=["1", "2", "3"],
+            index=0,
+            key="demo_week_selection",
+            disabled=True
+        )
+        
+        # Reset chat button (non-functional in demo)
+        st.button("Reset Chat", type="secondary", disabled=True)
+        
+        with st.expander("About this feature"):
+            st.markdown("""
+            ### How it works
+            
+            This chat connects you with an AI study buddy that knows your course materials.
+            
+            Your study buddy can:
+            - Answer questions about your uploaded materials
+            - Explain difficult concepts
+            - Help you understand challenging topics
+            - Provide helpful examples and analogies
+            
+            For best results:
+            - Ask specific questions
+            - Upload complete course materials
+            - Use this alongside practicing with flashcards
+            """)
+    
+    with col2:
+        st.subheader("Chat")
+        
+        # Create a fixed height chat container with sample messages
+        chat_container = st.container(height=400, border=True)
+        
+        # Show content based on selected subject
+        if selected_subject == "Computer Science":
+            with chat_container:
+                with st.chat_message("user"):
+                    st.write("Can you explain the concept of inheritance in object-oriented programming?")
+                
+                with st.chat_message("assistant"):
+                    st.write("""
+                    Based on your course materials for Computer Science Week 2, inheritance is a fundamental concept in object-oriented programming.
+                    
+                    Inheritance allows a class (child class) to inherit properties and methods from another class (parent class). This promotes code reuse and establishes a relationship between the parent and child classes.
+                    
+                    For example, if you have a `Vehicle` parent class with properties like `speed` and methods like `accelerate()`, you could create child classes like `Car` and `Motorcycle` that inherit these features while adding their own specialized properties and methods.
+                    
+                    The syntax in Python looks like:
+                    ```python
+                    class Vehicle:
+                        def __init__(self, speed=0):
+                            self.speed = speed
+                        
+                        def accelerate(self, amount):
+                            self.speed += amount
+                    
+                    class Car(Vehicle):  # Car inherits from Vehicle
+                        def __init__(self, speed=0, doors=4):
+                            super().__init__(speed)  # Call parent constructor
+                            self.doors = doors
+                    ```
+                    
+                    Would you like me to explain more about specific aspects of inheritance, like method overriding or multiple inheritance?
+                    """)
+                
+                with st.chat_message("user"):
+                    st.write("Yes, please explain method overriding.")
+                    
+                with st.chat_message("assistant"):
+                    st.write("""
+                    Method overriding is a key concept in inheritance where a child class provides a specific implementation for a method that's already defined in its parent class.
+                    
+                    **How it works:**
+                    1. The method in the child class must have the same name, parameters, and return type as in the parent class
+                    2. When the method is called on an object of the child class, the child's version executes instead of the parent's
+                    3. This enables polymorphism - where objects of different classes can be treated as objects of a common parent class
+                    
+                    **Example in Python:**
+                    ```python
+                    class Animal:
+                        def make_sound(self):
+                            return "Generic animal sound"
+                            
+                    class Dog(Animal):
+                        # Override the parent method
+                        def make_sound(self):
+                            return "Woof!"
+                            
+                    class Cat(Animal):
+                        # Override the parent method
+                        def make_sound(self):
+                            return "Meow!"
+                    
+                    # Create objects
+                    generic_animal = Animal()
+                    dog = Dog()
+                    cat = Cat()
+                    
+                    # Polymorphic behavior
+                    print(generic_animal.make_sound())  # "Generic animal sound"
+                    print(dog.make_sound())             # "Woof!"
+                    print(cat.make_sound())             # "Meow!"
+                    ```
+                    
+                    Would you like me to explain the concept of the `super()` function that's often used with method overriding?
+                    """)
+        
+        elif selected_subject == "Biology":
+            with chat_container:
+                with st.chat_message("user"):
+                    st.write("Can you explain how photosynthesis works?")
+                
+                with st.chat_message("assistant"):
+                    st.write("""
+                    Based on your course materials for Biology Week 1, photosynthesis is the process by which plants, algae, and some bacteria convert light energy into chemical energy.
+                    
+                    **The basic equation:** 6CO₂ + 6H₂O + light energy → C₆H₁₂O₆ (glucose) + 6O₂
+                    
+                    **The process occurs in two main stages:**
+                    
+                    1. **Light-dependent reactions** (in the thylakoid membrane):
+                       - Chlorophyll and other pigments in photosystems capture light energy
+                       - This energy is used to split water molecules (photolysis), releasing oxygen
+                       - Energy is temporarily stored as ATP and NADPH
+                    
+                    2. **Light-independent reactions** (Calvin cycle, in the stroma):
+                       - CO₂ is captured and combined with a 5-carbon compound (RuBP)
+                       - Using ATP and NADPH from the light reactions, the resulting molecules are reduced to form glucose
+                       - RuBP is regenerated to continue the cycle
+                    
+                    **Key structures involved:**
+                    - Chloroplasts: The organelles where photosynthesis occurs
+                    - Thylakoids: Membrane structures inside chloroplasts where light reactions happen
+                    - Stroma: Fluid inside chloroplasts where the Calvin cycle occurs
+                    
+                    Would you like me to go into more detail about any specific part of the process?
+                    """)
+                
+                with st.chat_message("user"):
+                    st.write("Can you explain more about the role of chlorophyll?")
+                    
+                with st.chat_message("assistant"):
+                    st.write("""
+                    Chlorophyll plays a central role in photosynthesis. Here's a detailed explanation:
+                    
+                    **Structure and Types:**
+                    - Chlorophyll is a green pigment molecule with a porphyrin ring structure containing a magnesium ion at the center
+                    - The most common types in plants are:
+                      - **Chlorophyll a**: The primary photosynthetic pigment (blue-green)
+                      - **Chlorophyll b**: An accessory pigment (yellow-green)
+                    
+                    **Functions:**
+                    1. **Light absorption**:
+                       - Chlorophyll absorbs primarily blue and red light while reflecting green light (giving plants their color)
+                       - Different chlorophyll types expand the range of light wavelengths that can be captured
+                    
+                    2. **Energy conversion**:
+                       - When chlorophyll absorbs photons, electrons in the molecule become excited to a higher energy state
+                       - This energy is channeled through a series of electron carriers in the electron transport chain
+                    
+                    3. **Photosystem organization**:
+                       - Chlorophyll molecules are arranged in clusters called photosystems
+                       - Photosystem I (PSI) and Photosystem II (PSII) work together in the light reactions
+                       - In PSII, chlorophyll's excited electrons are used to split water molecules
+                    
+                    **Location in the cell:**
+                    - Chlorophyll is embedded in the thylakoid membranes within chloroplasts
+                    - It's organized into light-harvesting complexes that funnel energy to reaction centers
+                    
+                    Chlorophyll deficiency results in plants that cannot photosynthesize effectively, appearing yellow or white instead of green (chlorosis).
+                    """)
+        
+        else:  # Law
+            with chat_container:
+                with st.chat_message("user"):
+                    st.write("Can you explain the concept of precedent in common law systems?")
+                
+                with st.chat_message("assistant"):
+                    st.write("""
+                    Based on your course materials for Law Week 1, precedent (also known as stare decisis) is a fundamental principle in common law legal systems.
+                    
+                    **What is Precedent?**
+                    Precedent refers to the legal principle where judges are bound to follow previous decisions of courts at the same or higher level when deciding cases with similar facts and legal issues. In Latin, this principle is known as "stare decisis" which means "to stand by decisions."
+                    
+                    **How Precedent Works:**
+                    
+                    1. **Binding vs. Persuasive Precedent**:
+                       - **Binding precedent**: Decisions from higher courts that lower courts must follow
+                       - **Persuasive precedent**: Decisions that courts may consider but aren't obligated to follow (e.g., from courts in other jurisdictions)
+                    
+                    2. **Ratio Decidendi vs. Obiter Dicta**:
+                       - **Ratio decidendi**: The binding part of a judgment - the legal principle upon which the decision is based
+                       - **Obiter dicta**: Additional remarks or observations that aren't essential to the decision and don't create binding precedent
+                    
+                    3. **Hierarchy of Courts**:
+                       - In most common law systems, a strict hierarchy determines which precedents bind which courts
+                       - For example, in the UK, Supreme Court decisions bind all lower courts
+                    
+                    **Importance of Precedent:**
+                    - Creates predictability and certainty in the law
+                    - Ensures similar cases are treated alike (consistency)
+                    - Promotes fairness and impartiality
+                    - Allows for the gradual, evolutionary development of law
+                    
+                    Would you like me to explain how precedents can be overturned or distinguished in certain circumstances?
+                    """)
+                
+                with st.chat_message("user"):
+                    st.write("Yes, please explain how precedents can be overturned.")
+                    
+                with st.chat_message("assistant"):
+                    st.write("""
+                    **Overturning or Avoiding Precedent**
+                    
+                    Despite the general rule to follow precedent, there are several legitimate ways courts can overturn or avoid previous decisions:
+                    
+                    **1. Overruling**
+                    - Higher courts can directly overturn precedents set by themselves or lower courts
+                    - Example: The US Supreme Court overturned *Plessy v. Ferguson* with *Brown v. Board of Education*, rejecting the "separate but equal" doctrine
+                    - This typically happens when a court believes the precedent is:
+                      - Clearly wrong or poorly reasoned
+                      - No longer applicable to modern conditions
+                      - Inconsistent with fundamental values or other established legal principles
+                    
+                    **2. Distinguishing**
+                    - Courts can "distinguish" a case from existing precedent by identifying meaningful differences in facts or legal issues
+                    - This doesn't overturn the precedent but limits its application
+                    - Example: "While the precedent in Smith v. Jones involved a verbal contract for goods, our case involves a written contract for services, making the precedent distinguishable"
+                    
+                    **3. Transformation Through Interpretation**
+                    - Courts can gradually reshape precedent by interpreting it in new ways
+                    - This allows for evolution without explicitly overturning cases
+                    
+                    **4. Legislative Intervention**
+                    - Legislatures can pass statutes that effectively overturn judge-made precedent
+                    - Example: Parliament passing a law that explicitly changes a rule established by courts
+                    
+                    **Considerations When Overturning Precedent**
+                    Courts typically consider:
+                    - The importance of legal certainty and stability
+                    - Whether people have relied on the existing precedent
+                    - How workable the precedent has proven to be in practice
+                    - Whether the original reasoning was flawed
+                    
+                    In most common law systems, overturning precedent is relatively rare, as stability and predictability are highly valued. This is why distinguishing is often preferred as a more subtle approach.
+                    """)
+        
+        # Disabled chat input
+        st.chat_input("Ask a question about your course materials...", disabled=True)
+
 def run():
     """Main tutor page content - this gets run by the navigation system"""
-    # Check subscription status - required for this premium feature
-    # Use st-paywall's add_auth directly instead of check_subscription
-    is_subscribed = add_auth(required=True)
+    # Check if user is authenticated and subscribed
+    user_email = st.session_state.get("email")
+    is_authenticated = user_email is not None
+    is_subscribed = st.session_state.get("user_subscribed", False)
     
-    # If user is not subscribed, the above function will redirect them
-    # The code below will only execute for subscribed users
+    # Title and description
+    st.title("💬 Chat with Subject Tutor")
+    st.markdown("""
+    Talk to your personal AI study buddy who knows your course materials!
+    Ask questions, get explanations, and deepen your understanding of course topics.
+    """)
+
+    # Handle different access scenarios
+    if not is_authenticated:
+        # Show preview mode for unauthenticated users
+        show_preview_mode(
+            "Subject Tutor",
+            """
+            Chat with an AI tutor that understands your course materials.
+            Ask questions, get explanations, and improve your understanding
+            of complex topics from your lectures and readings.
+            
+            Your AI study buddy makes learning more interactive and effective.
+            """
+        )
+        
+        # Show demo content for unauthenticated users
+        show_demo_content()
+        return
+    
+    if not is_subscribed:
+        # Show premium feature notice for authenticated but non-subscribed users
+        st.warning("This is a premium feature that requires a subscription.")
+        show_premium_benefits()
+        
+        # Show demo content for non-subscribed users
+        show_demo_content()
+        
+        # Add prominent upgrade button
+        st.button("Upgrade to Premium", type="primary", disabled=True)
+        return
+    
+    # If we get here, user is authenticated and subscribed - proceed with full functionality
     
     # Initialize session state for chat
     if "chat_messages" not in st.session_state:
@@ -45,7 +373,6 @@ def run():
     
     if "rag_manager" not in st.session_state:
         # Initialize RAG manager only for the current user if logged in
-        user_email = st.session_state.get("email")
         st.session_state.rag_manager = Home.init_rag_manager(email=user_email)
     
     # For storing subject/week selections (needed when loading from history)
@@ -66,7 +393,6 @@ def run():
     # Load data
     if "data" not in st.session_state:
         # Load data only for the current user if logged in
-        user_email = st.session_state.get("email")
         st.session_state.data = Home.load_data(email=user_email)
     
     # Title and description
@@ -341,11 +667,10 @@ def run():
             st.subheader("Chat History")
             
             # Check if user is logged in
-            if "email" not in st.session_state or not st.session_state.email:
+            if user_email is None:
                 st.info("Please log in to view your chat history.")
             else:
                 # Get chat history from MongoDB (filter to tutor chats only)
-                user_email = st.session_state.email
                 chat_sessions = mongodb.get_chat_sessions(user_email, chat_type=mongodb.CHAT_TYPE_TUTOR)
                 
                 if not chat_sessions:

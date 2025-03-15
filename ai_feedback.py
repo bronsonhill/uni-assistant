@@ -174,7 +174,7 @@ def cached_vector_search(vector_store_id: str, query: str):
         rag = RAGManager()
         
         # Search the vector store with the query
-        results = rag.client.beta.vector_stores.vector_search.create(
+        results = rag.client.vector_stores.vector_search.create(
             vector_store_id=vector_store_id,
             query=query,
             return_object='file_chunk',

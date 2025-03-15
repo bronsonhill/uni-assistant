@@ -14,24 +14,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 import Home
 from ai_feedback import evaluate_answer, chat_about_question
 from mongodb.queue_cards import save_ai_feedback, update_single_question_score
-import users
+from features.content.base_content import check_auth_for_action, show_preview_mode, get_user_email
 
-# Import st-paywall directly instead of paywall module
-try:
-    from st_paywall import add_auth
-except ImportError:
-    # Fallback if there's an issue with st_paywall
-    def add_auth(required=False, login_button_text="Login", login_button_color="primary", login_sidebar=False):
-        if "email" not in st.session_state:
-            st.session_state.email = "test@example.com"  # Fallback to test user
-        return True  # Always return subscribed in fallback mode
+# No longer importing auth, using session state directly instead
 
 # Use functions from Home module
 load_data = Home.load_data
 save_data = Home.save_data
 update_question_score = Home.update_question_score
 calculate_weighted_score = Home.calculate_weighted_score
-get_user_email = Home.get_user_email
 
 # Constants
 KNOWLEDGE_LEVEL_OPTIONS = {
@@ -499,128 +490,118 @@ def init_session_state():
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = []  # Store chat messages
 
-def display_setup_screen(is_subscribed: bool):
-    """Display the practice setup screen"""
+def display_setup_screen(is_authenticated):
+    """Display practice setup options"""
     st.subheader("Practice Setup")
     
-    all_subjects = list(st.session_state.data.keys())
+    # Get unique subjects and weeks
+    subjects = sorted(list(st.session_state.data.keys()))
     
-    # Create a two-row layout for better organization
-    row1_col1, row1_col2 = st.columns(2)
+    # Default values
+    default_subject = subjects[0] if subjects else ""
+    default_weeks = []
+    if default_subject in st.session_state.data:
+        default_weeks = [w for w in st.session_state.data[default_subject].keys() 
+                         if w != "vector_store_metadata" and w.isdigit()]
     
-    # First row: Subject and Week selectors
-    with row1_col1:
-        st.session_state.practice_subject = st.selectbox(
-            "Subject", 
-            ["All"] + all_subjects,
-            index=0
+    # Allow user to select subject
+    subject = st.selectbox("Select subject", subjects, key="practice_subject")
+    
+    # Get available weeks for the selected subject
+    available_weeks = []
+    if subject in st.session_state.data:
+        available_weeks = [w for w in st.session_state.data[subject].keys() 
+                           if w != "vector_store_metadata" and w.isdigit()]
+    
+    # Allow user to select weeks
+    selected_weeks = st.multiselect(
+        "Select weeks (leave empty for all)",
+        options=available_weeks,
+        default=[],
+        key="practice_weeks"
+    )
+    
+    # If no weeks selected, use all available weeks
+    if not selected_weeks:
+        selected_weeks = available_weeks
+    
+    # Practice mode
+    col1, col2 = st.columns(2)
+    with col1:
+        practice_mode = st.radio(
+            "Practice mode",
+            ["Sequential", "Random"],
+            index=1,
+            key="practice_mode",
+            horizontal=True
         )
-        
-        display_knowledge_level_selector()
     
-    with row1_col2:
-        available_weeks = ["All"]
-        if st.session_state.practice_subject != "All":
-            # Only show weeks for the selected subject (filter out metadata)
-            subject_weeks = filter_weeks(st.session_state.data, st.session_state.practice_subject)
-            available_weeks += sorted(subject_weeks, key=int)
-        else:
-            # Show all weeks across all subjects
-            all_weeks = collect_all_weeks(st.session_state.data)
-            available_weeks += all_weeks
-                
-        st.session_state.practice_week = st.selectbox(
-            "Week", 
-            available_weeks,
-            index=0
+    with col2:
+        questions_per_session = st.slider(
+            "Questions per session",
+            min_value=1,
+            max_value=20,
+            value=5,
+            key="practice_count"
         )
-        
-        st.session_state.practice_order = st.radio(
-            "Question Order", 
-            ["Sequential", "Random", "Needs Practice"]
-        )
-        
-        if is_subscribed:
-            st.session_state.enable_ai_feedback = st.checkbox(
-                "Enable AI Feedback",
-                value=st.session_state.enable_ai_feedback,
-                help="When enabled, AI will evaluate your answers and provide feedback"
-            )
-            
-            # Add an expander with more info about AI feedback
-            with st.expander("How AI Feedback works"):
-                st.markdown("""
-                ### AI Feedback Feature
-                
-                When enabled, the AI will:
-                
-                - Compare your answer with the expected answer
-                - Identify key concepts you covered correctly
-                - Point out any missing or incorrect information
-                - Suggest improvements to your answer
-                - Provide a score from 0-5 based on your answer quality
-                
-                This feedback helps you understand your strengths and weaknesses better than self-assessment alone. The AI considers the context of the question and evaluates your conceptual understanding, not just keyword matching.
-                
-                Note: AI feedback requires an internet connection and may take a few seconds to generate.
-                """)
-        else:
-            # Disabled checkbox for non-premium users
-            st.session_state.enable_ai_feedback = False
-            st.checkbox(
-                "Enable AI Feedback (Premium feature)",
-                value=False,
-                disabled=True,
-                help="AI feedback is a premium feature. Please upgrade to access this feature."
-            )
-            st.info("🔒 AI feedback requires a premium subscription. Upgrade to receive detailed AI analysis of your answers.")
     
-    questions_queue, _, _ = build_queue()
+    # Start practice button
+    start_button = st.button("Start Practice", type="primary", use_container_width=True)
     
-    if questions_queue:
-        st.success(f"Found {len(questions_queue)} questions matching your criteria")
-        
-        # Add an explanation of how question selection works
-        with st.expander("How does the knowledge level filter work?"):
+    if start_button:
+        if not is_authenticated:
+            # User needs to be authenticated to start practice
+            st.warning("Please sign in to start practicing.")
             st.markdown("""
-            ### Understanding Knowledge Levels
+            <div class="element-container st-paywall-container">
+                <div class="st-paywall">
+                    <a href="/?auth=login" target="_self" class="st-paywall-login-button" style="background-color: #FF6F00;">
+                        Sign in to Study Legend
+                    </a>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            return
             
-            The knowledge level filter helps you focus on questions you need to practice most based on your previous performance:
-            
-            | Level | Description | When to Use |
-            |-------|-------------|------------|
-            | **0** | New questions only | When starting a new topic |
-            | **1** | Includes questions you're struggling with (0-1) | Before important tests |
-            | **2** | Includes questions needing improvement (0-2) | For targeted review |
-            | **3** | Includes questions with moderate mastery (0-3) | For regular study sessions |
-            | **4** | Includes questions you know well (0-4) | For comprehensive review |
-            | **5** | All questions | For complete subject review |
-            
-            #### How It Works
-            
-            1. Each time you answer a question, you rate your knowledge (0-5)
-            2. The system calculates a weighted average of your scores
-            3. Recent scores count more than older ones
-            4. Questions are filtered based on their weighted average
-            
-            This spaced repetition approach helps you focus on material you need to practice most, making your study time more efficient.
-            """)
+        # Prepare queue of questions
+        queue = []
+        for week in selected_weeks:
+            if subject in st.session_state.data and week in st.session_state.data[subject]:
+                questions_list = st.session_state.data[subject][week]
+                
+                for i, q in enumerate(questions_list):
+                    # Only add questions that have questions
+                    if "question" in q and q["question"]:
+                        queue.append({
+                            "subject": subject,
+                            "week": week,
+                            "index": i,
+                            "data": q
+                        })
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Start Practice", use_container_width=True, type="primary"):
-                st.session_state.questions_queue = questions_queue
-                start_practice()
-                st.rerun()
+        # Shuffle if random mode
+        if practice_mode == "Random":
+            random.shuffle(queue)
         
-        with col2:
-            if st.button("Reset Filters", use_container_width=True):
-                st.session_state.practice_subject = "All"
-                st.session_state.practice_week = "All"
-                st.session_state.practice_order = "Sequential"
-                st.rerun()
-    else:
-        st.warning("No questions found with the selected filters. Try different selections.")
+        # Limit to requested number
+        queue = queue[:questions_per_session]
+        
+        if not queue:
+            st.warning("No questions available with the selected filters.")
+            return
+        
+        # Initialize practice
+        st.session_state.questions_queue = queue
+        st.session_state.current_question_idx = 0
+        st.session_state.practice_active = True
+        st.session_state.show_answer = False
+        st.session_state.answer_submitted = False
+        st.session_state.answer_text = ""
+        st.session_state.feedback = None
+        st.session_state.chat_messages = []
+        
+        # Force refresh
+        st.rerun()
 
 def build_queue():
     """Build queue using the cached function with current session state"""
@@ -687,100 +668,684 @@ def process_ai_feedback(current_q: Dict, user_answer: str, user_email: str):
     
     return feedback
 
-def display_practice_question(current_q: Dict, is_subscribed: bool, user_email: str):
-    """Display a practice question and handle user interactions"""
+def display_practice_question(question_data, is_authenticated, user_email):
+    """Display the current practice question"""
+    # Question container
     with st.container(border=True):
-        st.write(f"**Subject:** {current_q['subject']}, **Week:** {current_q['week']}")
+        st.markdown(f"**Subject:** {question_data['subject']} - Week {question_data['week']}")
+        st.markdown(f"### Q: {question_data['question']}")
         
-        # Question display
-        st.markdown("### Question:")
-        st.markdown(f"**{current_q['question']}**")
-        
-        # Answer section
-        st.markdown("### Your Answer:")
-        user_answer = st.text_area("Type your answer here (optional)", key=f"user_answer_{st.session_state.current_question_idx}", height=100)
-        
-        # Create navigation buttons and get the column for AI feedback button
-        ai_feedback_column = display_practice_navigation(
-            st.session_state.current_question_idx, 
-            len(st.session_state.questions_queue)
+        # Remember this question key for tracking
+        question_key = (
+            question_data["subject"],
+            question_data["week"],
+            question_data["idx"]
         )
         
-        # Add AI feedback button in the returned column
-        with ai_feedback_column:
-            # Only show the AI feedback button if user has premium access
-            if is_subscribed:
-                if st.session_state.enable_ai_feedback and st.button("Get AI Feedback", use_container_width=True):
-                    if not user_answer.strip():
-                        st.error("Please provide an answer to evaluate.")
-                    else:
-                        process_ai_feedback(current_q, user_answer, user_email)
-                        st.rerun()
+        # User answer section
+        user_answer = st.text_area(
+            "Your answer:",
+            value=st.session_state.user_answer,
+            height=100,
+            key=f"answer_input_{st.session_state.current_question_idx}"
+        )
+        
+        # Save the user's answer to session state
+        st.session_state.user_answer = user_answer
+        
+        # Answer and continue row
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            # Submit answer and get feedback
+            if st.button("Check Answer", use_container_width=True):
+                if not is_authenticated:
+                    st.warning("Please sign in to check your answer.")
+                    st.markdown("""
+                    <div class="element-container st-paywall-container">
+                        <div class="st-paywall">
+                            <a href="/?auth=login" target="_self" class="st-paywall-login-button" style="background-color: #FF6F00;">
+                                Sign in to Study Legend
+                            </a>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    return
+                    
+                if not user_answer.strip():
+                    st.warning("Please enter an answer first.")
+                    return
+                
+                st.session_state.show_answer = True
+                
+                # Generate AI feedback
+                with st.spinner("Analyzing your answer..."):
+                    try:
+                        feedback_result = evaluate_answer(
+                            question_data["question"],
+                            question_data["answer"],
+                            user_answer
+                        )
+                        
+                        # Store feedback in session state
+                        st.session_state.feedback = feedback_result
+                        
+                        # Clear chat messages when new feedback is generated
+                        st.session_state.chat_messages = []
+                        
+                        # Save feedback to MongoDB if user is logged in
+                        if user_email:
+                            try:
+                                save_ai_feedback(
+                                    user_email,
+                                    question_data["subject"],
+                                    question_data["week"],
+                                    question_data["idx"],
+                                    question_data["question"],
+                                    question_data["answer"],
+                                    user_answer,
+                                    feedback_result
+                                )
+                            except Exception as e:
+                                # Log but don't block if feedback saving fails
+                                print(f"Error saving feedback: {str(e)}")
+                    except Exception as e:
+                        st.error(f"Error generating feedback: {str(e)}")
+                        st.session_state.feedback = {
+                            "score": 0,
+                            "explanation": "Could not generate feedback. Please try again."
+                        }
+                
+                # Rerun to show feedback
+                st.rerun()
+                
+        with col2:
+            # Show answer button or next question button
+            if st.session_state.show_answer:
+                if st.button("Next Question →", use_container_width=True):
+                    # Move to the next question
+                    go_to_next_question()
+                    st.rerun()
             else:
-                # Disabled button for non-premium users
-                st.button("Get AI Feedback (Premium)", use_container_width=True, disabled=True, help="AI feedback requires a premium subscription")
-                st.info("🔒 AI feedback is a premium feature.")
+                if st.button("Show Answer", use_container_width=True):
+                    if not is_authenticated:
+                        st.warning("Please sign in to view answers.")
+                        st.markdown("""
+                        <div class="element-container st-paywall-container">
+                            <div class="st-paywall">
+                                <a href="/?auth=login" target="_self" class="st-paywall-login-button" style="background-color: #FF6F00;">
+                                    Sign in to Study Legend
+                                </a>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        return
+                    
+                    st.session_state.show_answer = True
+                    st.rerun()
         
-        # Self-rating section - only show if AI feedback is not enabled
-        if not (is_subscribed and st.session_state.enable_ai_feedback):
-            st.markdown("---")
-            st.markdown("### Rate Your Answer:")
-            display_self_rating_buttons(current_q, user_answer, user_email)
-        
-        # Display AI feedback if available
-        if st.session_state.feedback:
-            display_ai_feedback(st.session_state.feedback)
-            
-            # Initialize the chat if needed
-            if st.session_state.feedback and is_subscribed and st.session_state.enable_ai_feedback:
-                display_chat_interface(current_q, user_answer, st.session_state.feedback)
-        
-        # Display expected answer if requested
+        # Display answer and feedback if show_answer is True
         if st.session_state.show_answer:
+            # Display answer
             st.markdown("---")
-            st.markdown("### Expected Answer:")
-            if current_q["answer"]:
-                st.markdown(current_q["answer"])
-            else:
-                st.info("No expected answer was provided for this question.")
+            st.markdown("### Answer:")
+            st.markdown(question_data["answer"])
+            
+            # Display AI feedback if available
+            if st.session_state.feedback:
+                st.markdown("---")
+                st.markdown("### AI Feedback:")
+                
+                feedback = st.session_state.feedback
+                score = feedback.get("score", 0)
+                explanation = feedback.get("explanation", "No explanation provided.")
+                
+                # Create a score color based on the score
+                if score >= 8:
+                    score_color = "green"
+                elif score >= 5:
+                    score_color = "orange"
+                else:
+                    score_color = "red"
+                
+                # Display score
+                st.markdown(f"**Score:** <span style='color:{score_color};font-size:18px;'>{score}/10</span>", unsafe_allow_html=True)
+                
+                # Display explanation
+                st.markdown(f"**Feedback:** {explanation}")
+                
+                # Only show self-rating if authenticated
+                if is_authenticated:
+                    # Self-rating section
+                    st.markdown("### How would you rate your answer?")
+                    self_rating = st.slider(
+                        "Your self-assessment (0-10)",
+                        min_value=0,
+                        max_value=10,
+                        value=score,
+                        step=1,
+                        key=f"self_rating_{st.session_state.current_question_idx}"
+                    )
+                    
+                    # Save the rating
+                    if question_key not in st.session_state.question_ratings:
+                        st.session_state.question_ratings[question_key] = self_rating
+                    
+                    # Save button
+                    if st.button("Save Rating"):
+                        # Require authentication to save ratings
+                        if not user_email:
+                            st.warning("You must be logged in to save ratings.")
+                            return
+                            
+                        # Update the score in both data structures
+                        st.session_state.data = update_question_score(
+                            st.session_state.data,
+                            question_data["subject"],
+                            question_data["week"],
+                            question_data["idx"],
+                            self_rating,
+                            user_answer,
+                            user_email
+                        )
+                        
+                        # Update in MongoDB directly as well
+                        try:
+                            update_single_question_score(
+                                user_email,
+                                question_data["subject"],
+                                question_data["week"],
+                                question_data["idx"],
+                                self_rating,
+                                user_answer
+                            )
+                        except Exception as e:
+                            # Log but continue if direct MongoDB update fails
+                            print(f"Error updating score in MongoDB: {str(e)}")
+                        
+                        # Also update in session state
+                        st.session_state.question_ratings[question_key] = self_rating
+                        
+                        # Show confirmation
+                        st.success("Rating saved!")
+                    
+                    # Chat with AI about the question
+                    st.markdown("---")
+                    st.markdown("### Chat with AI about this question")
+                    
+                    # Display previous chat messages
+                    for message in st.session_state.chat_messages:
+                        role = message["role"]
+                        content = message["content"]
+                        
+                        if role == "user":
+                            st.chat_message("user").write(content)
+                        else:
+                            st.chat_message("assistant").write(content)
+                    
+                    # Chat input
+                    chat_input = st.chat_input("Ask a question about this topic...")
+                    if chat_input:
+                        # Add user message to chat history
+                        st.session_state.chat_messages.append({
+                            "role": "user",
+                            "content": chat_input
+                        })
+                        
+                        # Display user message
+                        st.chat_message("user").write(chat_input)
+                        
+                        # Get AI response
+                        with st.spinner("AI is thinking..."):
+                            try:
+                                ai_response = chat_about_question(
+                                    question_data["question"],
+                                    question_data["answer"],
+                                    user_answer,
+                                    chat_input,
+                                    question_data.get("subject", ""),
+                                    question_data.get("week", "")
+                                )
+                                
+                                # Add AI response to chat history
+                                st.session_state.chat_messages.append({
+                                    "role": "assistant",
+                                    "content": ai_response
+                                })
+                                
+                                # Display AI response
+                                st.chat_message("assistant").write(ai_response)
+                            except Exception as e:
+                                st.error(f"Error generating response: {str(e)}")
+                    
+                else:
+                    # Show login prompt for chat functionality
+                    st.info("Sign in to rate your answers and chat with AI about this question.")
+
+def go_to_next_question():
+    """Move to the next question in the queue"""
+    # Reset answer-related state
+    st.session_state.show_answer = False
+    st.session_state.user_answer = ""
+    st.session_state.feedback = None
+    st.session_state.chat_messages = []
+    
+    # Move to next question
+    st.session_state.current_question_idx += 1
+    
+    # Check if we've reached the end
+    if st.session_state.current_question_idx >= len(st.session_state.questions_queue):
+        # Practice session completed
+        reset_practice()
         
-        # Display question's score history
-        display_score_history(current_q)
+        # Show completion message
+        st.balloons()
+        st.success("Practice session completed!")
+        st.rerun()
+
+def reset_practice():
+    """Reset the practice session"""
+    st.session_state.practice_active = False
+    st.session_state.questions_queue = []
+    st.session_state.current_question_idx = 0
+    st.session_state.show_answer = False
+    st.session_state.user_answer = ""
+    st.session_state.feedback = None
+    st.session_state.chat_messages = []
+    
+    # Save the data with updated scores
+    user_email = get_user_email()
+    if user_email and st.session_state.question_ratings:
+        try:
+            save_data(st.session_state.data, user_email)
+        except Exception as e:
+            # Log but continue if save fails
+            print(f"Error saving data: {str(e)}")
+    
+    # Clear the question ratings
+    st.session_state.question_ratings = {}
+
+def show_demo_content():
+    """Show demo content for users in preview mode"""
+    # Add subject selector
+    selected_subject = st.selectbox(
+        "Select Subject for Demo",
+        ["Computer Science", "Biology", "Law"],
+        index=0,  # Default to Computer Science
+        key="practice_demo_subject"
+    )
+    
+    # Display a sample practice question based on selected subject
+    with st.container(border=True):
+        if selected_subject == "Computer Science":
+            st.markdown("**Subject:** Computer Science - Week 3")
+            st.markdown("### Q: Explain the difference between stack and heap memory allocation.")
+            
+            # Sample answer input
+            st.text_area(
+                "Your answer:",
+                value="Stack memory is used for static memory allocation and is managed automatically by the compiler. It stores local variables and function call data. Heap memory is used for dynamic memory allocation controlled by the programmer, storing objects with longer lifetimes.",
+                height=150,
+                key="demo_cs_answer_input",
+                disabled=True
+            )
+            
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                # Demo check answer button
+                st.button("Check Answer", key="cs_check", use_container_width=True, disabled=True)
+            
+            with col2:
+                # Demo show answer button
+                st.button("Show Answer", key="cs_show", use_container_width=True, disabled=True)
+            
+            # Sample answer and feedback
+            st.markdown("---")
+            st.markdown("### Answer:")
+            st.markdown("""
+            Stack memory allocation is used for static memory allocation where variables are allocated and 
+            deallocated in a last-in-first-out order, typically for local variables and function calls. 
+            It's faster but limited in size.
+            
+            Heap memory allocation is used for dynamic memory allocation at runtime, managed by the programmer 
+            (in languages like C/C++) or garbage collector. It's slower but allows for larger and variable-sized 
+            data structures with lifetimes not tied to specific scopes.
+            """)
+            
+            # Sample feedback preview
+            st.markdown("---")
+            st.markdown("### AI Feedback:")
+            st.markdown("**Score:** <span style='color:green;font-size:18px;'>8/10</span>", unsafe_allow_html=True)
+            st.markdown("""
+            **Feedback:** Good answer! You've correctly identified the key differences between stack and heap memory:
+            
+            ✅ You mentioned stack is for static allocation and heap for dynamic allocation
+            ✅ You explained that stack is managed automatically while heap is controlled by the programmer
+            ✅ You noted that stack typically stores local variables
+            
+            To improve your answer, you could add:
+            - The LIFO (Last-In-First-Out) structure of stack memory
+            - Speed differences (stack is generally faster)
+            - Size limitations (stack is more limited)
+            - Memory fragmentation concerns with heap memory
+            """)
+    
+            # Sample chat example
+            st.markdown("---")
+            st.markdown("### Chat with AI about this question")
+            
+            # Sample conversation
+            with st.chat_message("user"):
+                st.write("Can you explain what causes stack overflow errors?")
+                
+            with st.chat_message("assistant"):
+                st.write("""
+                Stack overflow errors occur when a program attempts to use more memory space in the stack than has been allocated. Here's why they happen:
+    
+                1. **Limited Stack Size**: The stack has a fixed, predetermined size set by the operating system or compiler.
+    
+                2. **Common Causes**:
+                   - Infinite recursion (a function that keeps calling itself without a proper base case)
+                   - Very deep recursion (even with a base case, if the depth is too great)
+                   - Allocating large data structures on the stack
+                   - Extensive function call chains that exceed stack capacity
+    
+                3. **Example**:
+                ```python
+                def infinite_recursion():
+                    # No base case to stop recursion
+                    print("Recursive call")
+                    infinite_recursion()
+                    
+                infinite_recursion()  # Will eventually cause stack overflow
+                ```
+    
+                4. **Prevention**:
+                   - Use iteration instead of recursion when possible
+                   - Implement proper base cases for recursive functions
+                   - Allocate large objects on the heap instead of the stack
+                   - Increase stack size if needed (platform-specific)
+                   - Use tail recursion optimization when available
+    
+                Stack overflows are particularly common in languages without automatic garbage collection like C and C++.
+                """)
+                
+            with st.chat_message("user"):
+                st.write("What about memory leaks with heap allocation?")
+            
+        elif selected_subject == "Biology":
+            st.markdown("**Subject:** Biology - Week 2")
+            st.markdown("### Q: Explain the process of photosynthesis and its importance for life on Earth.")
+            
+            # Sample answer input
+            st.text_area(
+                "Your answer:",
+                value="Photosynthesis is the process by which plants, algae, and some bacteria convert light energy into chemical energy. They use sunlight, water, and carbon dioxide to produce glucose and oxygen. This process is vital for life as it produces oxygen for animals to breathe and creates the energy source for most food chains.",
+                height=150,
+                key="demo_bio_answer_input",
+                disabled=True
+            )
+            
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                # Demo check answer button
+                st.button("Check Answer", key="bio_check", use_container_width=True, disabled=True)
+            
+            with col2:
+                # Demo show answer button
+                st.button("Show Answer", key="bio_show", use_container_width=True, disabled=True)
+            
+            # Sample answer and feedback
+            st.markdown("---")
+            st.markdown("### Answer:")
+            st.markdown("""
+            Photosynthesis is the biochemical process by which photoautotrophs (plants, algae, and some bacteria) convert light energy from the sun into chemical energy stored in glucose molecules. The process uses carbon dioxide and water, releasing oxygen as a byproduct.
+            
+            The overall equation is: 6CO₂ + 6H₂O + light energy → C₆H₁₂O₆ + 6O₂
+            
+            The process occurs in two main stages:
+            1. Light-dependent reactions (in the thylakoid membrane): Capture light energy, split water molecules, and produce ATP and NADPH.
+            2. Calvin cycle (light-independent reactions): Uses ATP and NADPH to fix carbon dioxide into glucose.
+            
+            Photosynthesis is crucial for life on Earth because:
+            - It produces oxygen required for aerobic respiration in most organisms
+            - It forms the base of most food chains, converting solar energy into chemical energy
+            - It removes carbon dioxide from the atmosphere, affecting climate regulation
+            - It has shaped Earth's atmosphere, enabling the evolution of complex life forms
+            """)
+            
+            # Sample feedback preview
+            st.markdown("---")
+            st.markdown("### AI Feedback:")
+            st.markdown("**Score:** <span style='color:orange;font-size:18px;'>7/10</span>", unsafe_allow_html=True)
+            st.markdown("""
+            **Feedback:** Good start! You've captured the basic concept of photosynthesis:
+            
+            ✅ You correctly identified it as a process that converts light energy to chemical energy
+            ✅ You mentioned the inputs (sunlight, water, CO₂) and outputs (glucose, oxygen)
+            ✅ You noted its importance for producing oxygen and supporting food chains
+            
+            To improve your answer, consider adding:
+            - The specific equation for photosynthesis (6CO₂ + 6H₂O + light → C₆H₁₂O₆ + 6O₂)
+            - The two stages of photosynthesis (light-dependent reactions and Calvin cycle)
+            - Where photosynthesis occurs in plants (chloroplasts, specifically thylakoids)
+            - The role of chlorophyll in capturing light energy
+            - More detailed ecological importance (carbon fixation, climate regulation)
+            """)
+    
+            # Sample chat example
+            st.markdown("---")
+            st.markdown("### Chat with AI about this question")
+            
+            # Sample conversation
+            with st.chat_message("user"):
+                st.write("What's the difference between C3, C4, and CAM photosynthesis?")
+                
+            with st.chat_message("assistant"):
+                st.write("""
+                C3, C4, and CAM photosynthesis are different adaptations that plants have evolved to fix carbon efficiently in various environments:
+    
+                **C3 Photosynthesis:**
+                - The most common type (~85% of plants)
+                - Named because the first product of carbon fixation is a 3-carbon molecule (3-phosphoglycerate)
+                - Carbon fixation occurs directly via the Calvin cycle using the enzyme RuBisCO
+                - Works best in moderate temperatures and humid conditions
+                - Examples: rice, wheat, soybeans, trees
+                - Less efficient in hot/dry conditions due to photorespiration
+    
+                **C4 Photosynthesis:**
+                - Evolved as an adaptation to hot, dry environments
+                - Named because the first product is a 4-carbon molecule (oxaloacetate)
+                - Uses spatial separation: carbon fixation occurs in mesophyll cells, then the 4-carbon molecules are transported to bundle sheath cells for the Calvin cycle
+                - Minimizes photorespiration by concentrating CO₂ around RuBisCO
+                - More efficient in hot/sunny conditions but requires more energy
+                - Examples: corn, sugarcane, sorghum
+    
+                **CAM Photosynthesis (Crassulacean Acid Metabolism):**
+                - Adaptation to extremely arid conditions
+                - Uses temporal separation: stomata open at night to collect CO₂, which is stored as malate; during the day, stomata close to conserve water while malate releases CO₂ for the Calvin cycle
+                - Highly water-efficient but less energy-efficient overall
+                - Examples: cacti, pineapples, agaves, many succulents
+    
+                These different photosynthetic pathways represent evolutionary adaptations to different environmental conditions, primarily balancing water conservation against photosynthetic efficiency.
+                """)
+                
+            with st.chat_message("user"):
+                st.write("Why does photorespiration happen in C3 plants?")
+            
+        else:  # Law
+            st.markdown("**Subject:** Law - Week 4")
+            st.markdown("### Q: Explain the concept of precedent in common law legal systems and its importance.")
+            
+            # Sample answer input
+            st.text_area(
+                "Your answer:",
+                value="Precedent in common law refers to the principle that courts should follow previous decisions from similar cases. It provides consistency, predictability, and stability in the legal system. Precedent is binding when it comes from a higher court but can sometimes be overturned if deemed necessary.",
+                height=150,
+                key="demo_law_answer_input",
+                disabled=True
+            )
+            
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                # Demo check answer button
+                st.button("Check Answer", key="law_check", use_container_width=True, disabled=True)
+            
+            with col2:
+                # Demo show answer button
+                st.button("Show Answer", key="law_show", use_container_width=True, disabled=True)
+            
+            # Sample answer and feedback
+            st.markdown("---")
+            st.markdown("### Answer:")
+            st.markdown("""
+            Precedent (stare decisis) is a fundamental principle in common law systems whereby judges are bound to follow previous decisions of courts of the same or higher level when ruling on cases with similar facts and legal issues.
+            
+            Key aspects of precedent include:
+            
+            1. Binding vs. Persuasive Precedent
+               - Binding precedent must be followed by lower courts
+               - Persuasive precedent from other jurisdictions may inform but not bind decisions
+            
+            2. Ratio Decidendi vs. Obiter Dicta
+               - Ratio decidendi: The binding legal principle essential to the decision
+               - Obiter dicta: Supplementary remarks that aren't binding
+            
+            3. Distinguishing and Overruling
+               - Courts may distinguish cases based on different facts
+               - Higher courts may overrule previous decisions in limited circumstances
+            
+            Precedent is crucial because it:
+            - Ensures consistency and predictability in legal outcomes
+            - Promotes equality by treating similar cases alike
+            - Provides efficiency in judicial decision-making
+            - Creates stability while allowing for incremental legal development
+            - Balances rigidity with flexibility through distinguishing and occasional overruling
+            
+            This doctrine is a defining characteristic of common law systems (UK, US, Canada, Australia) compared to civil law systems that rely primarily on codified statutes.
+            """)
+            
+            # Sample feedback preview
+            st.markdown("---")
+            st.markdown("### AI Feedback:")
+            st.markdown("**Score:** <span style='color:orange;font-size:18px;'>6/10</span>", unsafe_allow_html=True)
+            st.markdown("""
+            **Feedback:** Your answer provides a basic understanding of precedent:
+            
+            ✅ You correctly identified precedent as following previous decisions
+            ✅ You mentioned its importance for consistency and predictability
+            ✅ You noted the binding nature from higher courts and possibility of overturning
+            
+            To improve your answer, consider adding:
+            - The Latin term "stare decisis" ("to stand by decisions")
+            - The distinction between ratio decidendi (binding part) and obiter dicta (non-binding)
+            - More on how courts can "distinguish" cases without overturning precedent
+            - The hierarchy of courts and how it affects binding precedent
+            - The balance between legal stability and evolution of law
+            - Comparison with civil law systems that rely less on precedent
+            """)
+    
+            # Sample chat example
+            st.markdown("---")
+            st.markdown("### Chat with AI about this question")
+            
+            # Sample conversation
+            with st.chat_message("user"):
+                st.write("What are the circumstances when precedent can be overturned?")
+                
+            with st.chat_message("assistant"):
+                st.write("""
+                Precedent can be overturned in several specific circumstances, though courts generally approach this with caution:
+    
+                **1. By Higher Courts:**
+                - Superior courts can overturn precedents set by lower courts
+                - For example, the Supreme Court can overturn decisions from Courts of Appeal
+    
+                **2. By the Same Court:**
+                Some courts (especially supreme courts) can overturn their own precedents when:
+                - The precedent is clearly wrong or deeply flawed in reasoning
+                - The precedent has become unworkable in practice
+                - Social, technological, or legal developments have made it obsolete
+                - The precedent conflicts with fundamental principles of justice
+                - There's been significant change in public policy considerations
+    
+                **3. Notable Examples:**
+                - *Brown v. Board of Education* (1954) overturned *Plessy v. Ferguson* (1896), rejecting "separate but equal" doctrine
+                - *Lawrence v. Texas* (2003) overturned *Bowers v. Hardwick* (1986) regarding same-sex relationships
+    
+                **4. Considerations When Overturning:**
+                Courts typically consider:
+                - Reliance: Whether people have structured their affairs based on the precedent
+                - Stability: The importance of predictability in the legal system
+                - Legitimacy: How overturning might affect public perception of the judiciary
+                - Evolution: The need for law to adapt to changing societal conditions
+    
+                **5. Distinguishing vs. Overturning:**
+                - Courts often prefer to "distinguish" cases (finding relevant differences) rather than overturn precedent outright
+                - This allows more incremental development of law while maintaining respect for precedent
+    
+                The power to overturn precedent is exercised sparingly and typically accompanied by thorough justification to maintain the integrity of the legal system.
+                """)
+                
+            with st.chat_message("user"):
+                st.write("How does the concept of precedent differ between the UK and US legal systems?")
+        
+        # Disabled chat input to show it's a demo
+        st.chat_input("Ask a question about this topic...", disabled=True)
+        
+        # Show login/subscription prompt
+        st.markdown("---")
+        st.info("Sign in or upgrade to premium to practice with your own flashcards and get AI feedback on your answers.")
 
 def run():
     """Main practice page content - this gets run by the navigation system"""
-    # Check subscription status but don't require it
-    # Use st-paywall's add_auth directly instead of check_subscription
-    is_subscribed = add_auth(required=False)
+    # Check if user is authenticated and subscribed using session state directly
     user_email = st.session_state.get("email")
+    is_authenticated = user_email is not None
+    is_subscribed = st.session_state.get("user_subscribed", False)
     
     st.title("🎯 Practice with AI")
     st.markdown("""
     Test your knowledge with the questions you've created. You can practice all questions 
     or filter by subject and week. Choose between sequential or random order.
     """)
-    
-    # Get the most reliable user email
-    user_email = get_user_email() or user_email
-    
-    # Make sure we have the user's email in all the right places
-    if user_email:
-        st.session_state.user_email = user_email
-    
-    # Load data if not already in session state
+
+    # Check for unauthenticated users first to show demo content
+    if not is_authenticated:
+        # Show preview mode for unauthenticated users
+        show_preview_mode(
+            "Practice",
+            """
+            This feature allows you to practice with your flashcards using AI feedback.
+            
+            - Choose questions by subject and week
+            - Test yourself in sequential or random order
+            - Get instant AI feedback on your answers
+            - Track your progress over time
+            """
+        )
+        
+        # Show demo/preview content
+        show_demo_content()
+        return
+
+    # Load data if not already in session state (only for authenticated users)
     if "data" not in st.session_state:
-        st.session_state.data = cached_load_data(user_email)
+        st.session_state.data = load_data(user_email)
     
     # Initialize practice-specific session state
     init_session_state()
-    
+
     # Practice setup screen
     if not st.session_state.practice_active:
         if not st.session_state.data:
             st.warning("No questions available. Add some questions first!")
             st.link_button("Go to Add Cards with AI", "/render_add_ai")
         else:
-            display_setup_screen(is_subscribed)
+            display_setup_screen(is_authenticated)
     
     # Practice in progress
     else:
@@ -805,4 +1370,34 @@ def run():
         # Current question
         if st.session_state.current_question_idx < len(st.session_state.questions_queue):
             current_q = st.session_state.questions_queue[st.session_state.current_question_idx]
-            display_practice_question(current_q, is_subscribed, user_email)
+            display_practice_question(current_q, is_authenticated, user_email)
+    
+    # For authenticated but non-subscribed users - show premium benefits
+    if is_authenticated and not is_subscribed:
+        # Show premium benefits
+        st.markdown("### 🌟 Upgrade to Premium for these benefits:")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("✅ **Advanced AI feedback on your answers**")
+            st.markdown("✅ **Chat with AI about any question**")
+            st.markdown("✅ **Detailed progress analytics**")
+        
+        with col2:
+            st.markdown("✅ **Personalized learning recommendations**")
+            st.markdown("✅ **Unlimited practice sessions**")
+            st.markdown("✅ **Priority support**")
+
+        # Show premium feature notice
+        st.warning("Get AI feedback and chat features with a premium subscription.")
+        
+        # Add upgrade button
+        st.button("Upgrade to Premium", type="primary", disabled=True)
+        
+        # Show demo content for authenticated but non-subscribed users
+        st.markdown("---")
+        st.subheader("Preview Premium Features")
+        st.markdown("Here's a preview of the premium features you'll get with a subscription:")
+        
+        # Show demo content
+        show_demo_content()
