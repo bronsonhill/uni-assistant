@@ -13,8 +13,6 @@ enableXsrfProtection = false
 enableCORS = false
 enableWebsocketCompression = false
 maxUploadSize = 50
-# Set a very long lifetime for sessions (7 days = 604800 seconds)
-maxSessionAge = 604800
 # Increase request timeout for larger file uploads
 headless = false
 runOnSave = false
