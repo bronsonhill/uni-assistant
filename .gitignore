@@ -3,3 +3,6 @@
 .env
 /features/.streamlit/secrets.toml
 *.pyc
+/.github
+users.json
+queue_cards.json
