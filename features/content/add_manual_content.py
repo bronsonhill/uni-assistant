@@ -1,18 +1,19 @@
-import streamlit as st
-import sys
-import os
+"""
+Add Questions Manually content module.
 
-# Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from Home import load_data, save_data, add_question
-from paywall import check_subscription, display_subscription_status
+This module provides the content for the Add Questions Manually page.
+"""
+import streamlit as st
+from . import base_content
+
+# Import specific functions needed from Home
+from Home import add_question, save_data
 
 def run():
     """Main add questions manually page content - this gets run by the navigation system"""
-    
-    # Load data if not already in session state
-    if "data" not in st.session_state:
-        st.session_state.data = load_data()
+    # Initialize data in session state
+    user_email = base_content.get_user_email()
+    base_content.init_data(email=user_email)
     
     # Page title
     st.title("🆕 Add New Questions")
@@ -55,7 +56,7 @@ def run():
             elif not question:
                 st.error("Please enter a question.")
             else:
-                st.session_state.data = add_question(st.session_state.data, new_subject, week, question, answer)
-                save_data(st.session_state.data)
+                st.session_state.data = add_question(st.session_state.data, new_subject, week, question, answer, email=user_email)
+                save_data(st.session_state.data, email=user_email)
                 st.success(f"Added question to {new_subject}, Week {week}")
                 st.balloons()

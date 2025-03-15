@@ -291,6 +291,40 @@ def update_question_score(data: Dict, subject: str, week: str, question_idx: int
     return data
 
 
+def save_ai_feedback(data: Dict, question_item: Dict, feedback_data: Dict) -> Dict:
+    """
+    Save AI feedback to the most recent score entry
+    
+    Args:
+        data: The data dictionary
+        question_item: The question item dictionary
+        feedback_data: The feedback data dictionary
+    
+    Returns:
+        Updated data dictionary
+    """
+    subject = question_item["subject"]
+    week = question_item["week"]
+    idx = question_item["question_idx"]
+    
+    if (subject in data and 
+        week in data[subject] and 
+        idx < len(data[subject][week]) and
+        "scores" in data[subject][week][idx] and
+        data[subject][week][idx]["scores"]):
+        
+        # Get the most recent score entry
+        latest_score = data[subject][week][idx]["scores"][-1]
+        
+        # Add feedback data
+        latest_score["ai_feedback"] = {
+            "feedback": feedback_data.get("feedback", ""),
+            "hint": feedback_data.get("hint", "")
+        }
+    
+    return data
+
+
 def calculate_weighted_score(scores, decay_factor=0.1):
     """
     Calculate a time-weighted score for a question based on score history
@@ -329,3 +363,116 @@ def calculate_weighted_score(scores, decay_factor=0.1):
         return None
         
     return total_weighted_score / total_weight
+
+
+def update_single_question_score(data: Dict, subject: str, week: str, question_idx: int, score: int, user_answer: str = None, feedback_data: Dict = None, email: str = None) -> Dict:
+    """
+    Update a single question's score directly in MongoDB without rewriting the entire database.
+    Also adds AI feedback if provided.
+    
+    Args:
+        data: The data dictionary (for in-memory updates)
+        subject: Subject name
+        week: Week number (as string)
+        question_idx: Index of the question
+        score: Score value (0-10)
+        user_answer: Optional user's answer to log
+        feedback_data: Optional AI feedback data
+        email: User's email (required for MongoDB update)
+        
+    Returns:
+        Updated data dictionary
+    """
+    if not email:
+        # If no email provided, fall back to regular update
+        data = update_question_score(data, subject, week, question_idx, score, user_answer, email)
+        return data
+        
+    # First update the in-memory data
+    if subject in data and week in data[subject] and question_idx < len(data[subject][week]):
+        # Get the current timestamp
+        current_time = int(time.time())
+        
+        # Initialize scores list if it doesn't exist
+        if "scores" not in data[subject][week][question_idx]:
+            data[subject][week][question_idx]["scores"] = []
+            
+        # Create score entry
+        score_entry = {
+            "score": score,
+            "timestamp": current_time
+        }
+        
+        # Add user answer if provided
+        if user_answer is not None:
+            score_entry["user_answer"] = user_answer
+            
+        # Add AI feedback if provided
+        if feedback_data is not None:
+            score_entry["ai_feedback"] = {
+                "feedback": feedback_data.get("feedback", ""),
+                "hint": feedback_data.get("hint", "")
+            }
+            
+        # Add the new score with timestamp and user answer
+        data[subject][week][question_idx]["scores"].append(score_entry)
+        
+        # Update last practiced timestamp
+        data[subject][week][question_idx]["last_practiced"] = current_time
+        
+        # Now update directly in MongoDB without rewriting the entire database
+        try:
+            collection = get_collection(QUEUE_CARDS_COLLECTION)
+            
+            # Find the document containing this question
+            query = {
+                "email": email,
+                "subject": subject,
+                "week": week
+            }
+            
+            # Get the document to find the correct batch
+            doc = collection.find_one(query)
+            if doc and "questions" in doc:
+                questions = doc["questions"]
+                
+                # Find which batch contains our question
+                batch_size = 100  # Same as in save_data
+                batch_index = question_idx // batch_size
+                question_index_in_batch = question_idx % batch_size
+                
+                # If the question is in a valid batch
+                if batch_index < len(questions) // batch_size + 1:
+                    # Update just this specific question's scores and last_practiced
+                    update_path = f"questions.{question_index_in_batch}.scores"
+                    last_practiced_path = f"questions.{question_index_in_batch}.last_practiced"
+                    
+                    # Update the document
+                    collection.update_one(
+                        {
+                            "email": email,
+                            "subject": subject,
+                            "week": week,
+                            # Ensure we're updating the right batch
+                            "questions": {"$exists": True}
+                        },
+                        {
+                            "$set": {
+                                update_path: data[subject][week][question_idx]["scores"],
+                                last_practiced_path: current_time,
+                                "updated_at": current_time
+                            }
+                        }
+                    )
+                    print(f"Updated single question score for {subject}, week {week}, question {question_idx}")
+                else:
+                    print(f"Question index {question_idx} is out of bounds for batches")
+            else:
+                print(f"Document not found for {subject}, week {week}")
+                
+        except Exception as e:
+            print(f"Error updating single question: {str(e)}")
+            # Fall back to full save if direct update fails
+            save_data(data, email)
+    
+    return data

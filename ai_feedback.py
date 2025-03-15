@@ -2,6 +2,7 @@ import os
 import json
 from typing import Dict, Optional, List, Any
 from openai import OpenAI
+import streamlit as st
 
 # Set your OpenAI API key from environment variable
 # You'll need to set OPENAI_API_KEY in your environment
@@ -14,6 +15,24 @@ except ImportError:
     # Streamlit is not available, continue with only environment variable
     pass
 client = OpenAI(api_key=api_key) if api_key else None
+
+# Cache evaluation results with TTL=1 hour to avoid repeated API calls for identical questions/answers
+@st.cache_data(ttl=3600, show_spinner=False)
+def cached_evaluate_answer(question: str, user_answer: str, expected_answer: Optional[str] = None) -> Dict:
+    """
+    Cached version of evaluate_answer that uses the cache_data decorator.
+    This reduces API calls for identical inputs within the TTL period.
+    
+    Args:
+        question: The question text
+        user_answer: The user's answer to evaluate
+        expected_answer: The expected answer (if provided)
+    
+    Returns:
+        Dict containing evaluation results
+    """
+    # This function wraps the non-streaming version of evaluate_answer
+    return _evaluate_answer_impl(question, user_answer, expected_answer)
 
 def evaluate_answer(question: str, user_answer: str, expected_answer: Optional[str] = None, stream_handler = None) -> Dict:
     """
@@ -30,6 +49,19 @@ def evaluate_answer(question: str, user_answer: str, expected_answer: Optional[s
         - score: integer from 1-5
         - feedback: string with brief feedback
         - hint: string with a hint (if score < 4)
+    """
+    # If no stream handler is provided, we can use the cached version
+    if stream_handler is None:
+        return cached_evaluate_answer(question, user_answer, expected_answer)
+    
+    # Otherwise, we need to use the non-cached implementation directly
+    # since streaming responses can't be cached
+    return _evaluate_answer_impl(question, user_answer, expected_answer)
+
+# The actual implementation - not cached directly
+def _evaluate_answer_impl(question: str, user_answer: str, expected_answer: Optional[str] = None) -> Dict:
+    """
+    Implementation of answer evaluation that both cached and non-cached versions use
     """
     if not api_key:
         return {
@@ -122,7 +154,87 @@ def evaluate_answer(question: str, user_answer: str, expected_answer: Optional[s
             "feedback": f"Error evaluating answer: {str(e)}",
             "hint": "Please try again or contact support."
         }
+
+# Cache vector searches to reduce repeated API calls for identical subject/topic queries
+@st.cache_data(ttl=1800, show_spinner=False)
+def cached_vector_search(vector_store_id: str, query: str):
+    """
+    Cache vector search results to reduce API calls
+    
+    Args:
+        vector_store_id: The ID of the vector store to search
+        query: The search query
         
+    Returns:
+        List of search results or empty list if error
+    """
+    try:
+        # Import here to avoid circular imports
+        from rag_manager import RAGManager
+        rag = RAGManager()
+        
+        # Search the vector store with the query
+        results = rag.client.beta.vector_stores.vector_search.create(
+            vector_store_id=vector_store_id,
+            query=query,
+            return_object='file_chunk',
+            limit=3  # Limit to top 3 sources
+        )
+        
+        # Get filenames for the sources
+        sources = []
+        for item in results.data:
+            try:
+                # Try to get file info
+                file_info = rag.get_vector_store_file(vector_store_id, item.file_id)
+                if file_info and "filename" in file_info:
+                    sources.append(file_info["filename"])
+            except Exception:
+                # If we can't get the filename, continue to the next item
+                pass
+                
+        # Return unique sources
+        return list(set(sources))
+        
+    except Exception as e:
+        print(f"Error searching vector store: {e}")
+        return []
+
+# Generate system message for chat context
+def _create_system_message(question: str, expected_answer: str, user_answer: str, 
+                          feedback: Dict[str, Any], subject: str, week: str) -> str:
+    """
+    Create a consistent system message for chat conversations
+    
+    Args:
+        question: The question text
+        expected_answer: The expected answer
+        user_answer: The user's answer
+        feedback: The AI feedback dictionary
+        subject: The subject of the question
+        week: The week of the question
+        
+    Returns:
+        String containing the system message
+    """
+    return f"""You are an educational AI tutor specialized in {subject}, helping students understand concepts in Week {week}.
+You're discussing a specific question the student has recently answered. Here's the relevant information:
+Question: {question}
+Expected Answer: {expected_answer}
+User's Answer: {user_answer}
+Feedback Score: {feedback.get('score', 'N/A')}/5
+Feedback: {feedback.get('feedback', 'No feedback available')}
+Hint: {feedback.get('hint', 'No hint available')}
+Your role is to be a Socratic tutor who:
+1. Asks thought-provoking questions before giving direct answers
+2. Guides students to discover answers themselves through critical thinking
+3. Helps clarify concepts by breaking them down into smaller parts
+4. Encourages deeper exploration with "why" and "how" questions
+5. Is patient, encouraging and supportive
+Keep your responses BRIEF (1-3 sentences when possible) and focused on helping the student understand the material better.
+Do not share the complete answer immediately, but guide the student toward deeper understanding through questioning.
+"""
+
 def chat_about_question(
     question: str, 
     expected_answer: str, 
@@ -159,28 +271,10 @@ def chat_about_question(
         chat_messages = []
     
     # Prepare the system message with context
-    system_message = f"""You are an educational AI tutor specialized in {subject}, helping students understand concepts in Week {week}.
-
-You're discussing a specific question the student has recently answered. Here's the relevant information:
-
-Question: {question}
-Expected Answer: {expected_answer}
-User's Answer: {user_answer}
-Feedback Score: {feedback.get('score', 'N/A')}/5
-Feedback: {feedback.get('feedback', 'No feedback available')}
-Hint: {feedback.get('hint', 'No hint available')}
-
-Your role is to be a Socratic tutor who:
-1. Asks thought-provoking questions before giving direct answers
-2. Guides students to discover answers themselves through critical thinking
-3. Helps clarify concepts by breaking them down into smaller parts
-4. Encourages deeper exploration with "why" and "how" questions
-5. Is patient, encouraging and supportive
-
-Keep your responses BRIEF (1-3 sentences when possible) and focused on helping the student understand the material better.
-Do not share the complete answer immediately, but guide the student toward deeper understanding through questioning.
-"""
-
+    system_message = _create_system_message(
+        question, expected_answer, user_answer, feedback, subject, week
+    )
+    
     # Prepare the messages for the API call
     messages = [{"role": "system", "content": system_message}]
     
@@ -244,52 +338,27 @@ Do not share the complete answer immediately, but guide the student toward deepe
                 references_detected = True
                 
             if references_detected and vector_store_id:
-                try:
-                    # Import here to avoid circular imports
-                    from rag_manager import RAGManager
-                    rag = RAGManager()
-                    
-                    # In streaming mode, we don't have the exact query used
-                    # So we'll use parts of the user's message as a query
-                    query = ""
-                    for msg in chat_messages:
-                        if msg["role"] == "user":
-                            query = msg["content"]
-                            break
-                    
-                    # If no user message found, use the full response to search for relevant sources
-                    if not query:
-                        query = full_response
-                        
-                    # Get source materials
-                    sources = []
-                    results = rag.client.beta.vector_stores.vector_search.create(
-                        vector_store_id=vector_store_id,
-                        query=query,
-                        return_object='file_chunk',
-                        limit=3  # Limit to top 3 sources
-                    )
-                    
-                    # Get filenames for the sources
-                    for item in results.data:
-                        try:
-                            file_info = rag.get_vector_store_file(vector_store_id, item.file_id)
-                            if file_info and "filename" in file_info:
-                                sources.append(file_info["filename"])
-                        except Exception:
-                            pass
-                    
-                    # Create citation note
-                    if sources:
-                        # Get unique sources
-                        unique_sources = list(set(sources))
-                        sources_text = ", ".join(unique_sources[:3])
-                        return f"{full_response}\n\n(Sources: {sources_text})"
-                except Exception as e:
-                    print(f"Error adding sources in streaming mode: {e}")
-                    
-                # Fallback if we detected references but couldn't get sources
-                return f"{full_response}\n\n(Source: Course materials)"
+                # Extract query from user messages for vector search
+                query = ""
+                for msg in chat_messages:
+                    if msg["role"] == "user":
+                        query = msg["content"]
+                        break
+                
+                # If no user message found, use the full response to search for relevant sources
+                if not query:
+                    query = full_response
+                
+                # Use cached vector search to get sources
+                sources = cached_vector_search(vector_store_id, query) if vector_store_id else []
+                
+                # Create citation note
+                if sources:
+                    sources_text = ", ".join(sources[:3])
+                    return f"{full_response}\n\n(Sources: {sources_text})"
+                else:
+                    # Fallback if we detected references but couldn't get sources
+                    return f"{full_response}\n\n(Source: Course materials)"
             elif "course materials" in full_response.lower():
                 # Generic fallback for course material references
                 return f"{full_response}\n\n(Source: Course materials)"
@@ -315,52 +384,17 @@ Do not share the complete answer immediately, but guide the student toward deepe
                 for tool_call in message.tool_calls:
                     if tool_call.function.name == "search_vector_store":
                         # Extract info from tool call
-                        try:
-                            function_args = json.loads(tool_call.function.arguments)
-                            query = function_args.get("query", "")
-                            
-                            # Import here to avoid circular imports
-                            from rag_manager import RAGManager
-                            rag = RAGManager()
-                            
-                            # Get source materials if vector_store_id is available
-                            sources = []
-                            if vector_store_id:
-                                try:
-                                    # Search the vector store with the query
-                                    results = rag.client.beta.vector_stores.vector_search.create(
-                                        vector_store_id=vector_store_id,
-                                        query=query,
-                                        return_object='file_chunk',
-                                        limit=3  # Limit to top 3 sources
-                                    )
-                                    
-                                    # Get filenames for the sources
-                                    for item in results.data:
-                                        try:
-                                            # Try to get file info
-                                            file_info = rag.get_vector_store_file(vector_store_id, item.file_id)
-                                            if file_info and "filename" in file_info:
-                                                sources.append(file_info["filename"])
-                                        except Exception:
-                                            # If we can't get the filename, just use a generic source
-                                            pass
-                                except Exception as e:
-                                    print(f"Error searching vector store: {e}")
-                            
-                            # Create citation note
-                            if sources:
-                                # Get unique sources
-                                unique_sources = list(set(sources))
-                                sources_text = ", ".join(unique_sources[:3])  # Limit to 3 sources to avoid clutter
-                                
-                                # Add source citation to the response
-                                return f"{message.content}\n\n(Sources: {sources_text})"
-                            else:
-                                # Fallback to generic note
-                                return f"{message.content}\n\n(Source: Course materials)"
-                        except Exception as e:
-                            print(f"Error processing vector search: {e}")
+                        function_args = json.loads(tool_call.function.arguments)
+                        query = function_args.get("query", "")
+                        
+                        # Get sources using cached vector search
+                        sources = cached_vector_search(vector_store_id, query) if vector_store_id else []
+                        
+                        # Create citation note
+                        if sources:
+                            sources_text = ", ".join(sources[:3])  # Limit to 3 sources to avoid clutter
+                            return f"{message.content}\n\n(Sources: {sources_text})"
+                        else:
                             # Fallback to generic note
                             return f"{message.content}\n\n(Source: Course materials)"
             
