@@ -18,4 +18,3 @@ headless = false
 runOnSave = false
 
 [logger]
-level = "warning"
