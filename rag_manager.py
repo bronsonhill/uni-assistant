@@ -544,7 +544,7 @@ class RAGManager:
         """
         print(f"Creating assistant with vector_store_id: {vector_store_id}")
         try:
-            assistant = self.client.assistants.create(
+            assistant = self.client.beta.assistants.create(
                 name="Study Question Generator",
                 instructions="""You are an expert teacher creating study questions for university students.
 Generate thought-provoking questions based on the provided content from course materials.
@@ -655,7 +655,7 @@ IMPORTANT: Avoid duplicating these existing questions:
 {existing_qs_str}
 """
         
-        thread = self.client.threads.create(
+        thread = self.client.beta.threads.create(
             messages=[
                 {
                     "role": "user",
@@ -666,7 +666,7 @@ IMPORTANT: Avoid duplicating these existing questions:
         
         # Create a run with instructions to format responses as JSON
         print(f"Creating run with thread ID: {thread.id} and assistant ID: {assistant.id}")
-        run = self.client.threads.runs.create(
+        run = self.client.beta.threads.runs.create(
             thread_id=thread.id,
             assistant_id=assistant.id,
             instructions="""When generating questions, please format your response as a valid JSON object with the following structure:
@@ -690,7 +690,7 @@ Make sure to parse relevant information from the files using the file_search too
         start_time = time.time()
         while run.status not in ["completed", "failed", "expired", "cancelled"] and time.time() - start_time < timeout:
             time.sleep(2)
-            run = self.client.threads.runs.retrieve(
+            run = self.client.beta.threads.runs.retrieve(
                 thread_id=thread.id,
                 run_id=run.id
             )
@@ -699,7 +699,7 @@ Make sure to parse relevant information from the files using the file_search too
             raise ValueError(f"Question generation failed with status: {run.status}")
         
         # Get the messages
-        messages = self.client.threads.messages.list(
+        messages = self.client.beta.threads.messages.list(
             thread_id=thread.id
         )
         
