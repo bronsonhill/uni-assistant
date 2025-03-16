@@ -12,25 +12,53 @@ load_dotenv()
 
 class RAGManager:
     def __init__(self):
+        """Initialize the RAG Manager."""
+        print("Initializing RAG Manager")
+        
         # Initialize the OpenAI client using Streamlit secrets if available
         api_key = None
         
-        # First try to get API key from Streamlit secrets
         try:
-            api_key = st.secrets["OPENAI_API_KEY"]
-            print("Using OpenAI API key from Streamlit secrets")
-        except (KeyError, AttributeError):
-            # Fallback to environment variable if not in secrets
-            api_key = os.getenv("OPENAI_API_KEY")
-            print("Using OpenAI API key from environment variables")
-            
-        if not api_key:
-            raise ValueError("OpenAI API key not found. Please set it in .streamlit/secrets.toml or as an environment variable.")
+            if "OPENAI_API_KEY" in st.secrets:
+                api_key = st.secrets["OPENAI_API_KEY"]
+                print("Using OpenAI API key from Streamlit secrets")
+        except Exception as e:
+            print(f"Could not access Streamlit secrets: {e}")
+            print("Will use default OpenAI API key from environment variable")
         
         self.client = OpenAI(api_key=api_key)
         
         # Dictionary to track vector stores we've created
         self.vector_stores = {}
+        
+        # Check for vector store ID compliance
+        self.check_vector_store_id_compliance()
+        
+    def check_vector_store_id_compliance(self):
+        """
+        Check existing vector stores for compliance with the 64-character limit.
+        Warns about any vector store IDs that exceed the limit, as they won't work with the API.
+        """
+        try:
+            # Try to list all vector stores
+            vector_stores = self.client.vector_stores.list()
+            oversized_ids = []
+            
+            for store in vector_stores.data:
+                if len(store.id) > 64:
+                    oversized_ids.append({
+                        "id": store.id,
+                        "name": store.name,
+                        "length": len(store.id)
+                    })
+            
+            if oversized_ids:
+                print(f"WARNING: Found {len(oversized_ids)} vector stores with IDs exceeding the 64-character limit:")
+                for store in oversized_ids:
+                    print(f"  - {store['name']} (ID: {store['id'][:20]}... - {store['length']} chars)")
+                print("These vector stores cannot be used with the OpenAI API and should be recreated.")
+        except Exception as e:
+            print(f"Could not check vector store ID compliance: {e}")
         
     def get_vector_store_name(self, subject: str, week: str, email: str = None) -> str:
         """
@@ -42,19 +70,38 @@ class RAGManager:
             email: Optional user email to create user-specific vector store
             
         Returns:
-            A sanitized vector store name
+            A sanitized vector store name (limited to 64 characters)
         """
         # Make sure the subject and week are sanitized for OpenAI vector store name
         sanitized_subject = ''.join(c if c.isalnum() or c in ['-', '_'] else '_' for c in subject)
         
-        # If email is provided, include a hash of the email to maintain privacy but ensure uniqueness
+        # Set a maximum length for the subject to leave room for other components
+        max_subject_length = 30
+        if len(sanitized_subject) > max_subject_length:
+            sanitized_subject = sanitized_subject[:max_subject_length]
+        
+        # Sanitize and limit the week field too
+        sanitized_week = ''.join(c if c.isalnum() or c in ['-', '_'] else '_' for c in str(week))
+        max_week_length = 5
+        if len(sanitized_week) > max_week_length:
+            sanitized_week = sanitized_week[:max_week_length]
+        
+        # Generate vector store name
         if email:
             import hashlib
             # Create a short hash (first 8 chars) of the email
             email_hash = hashlib.md5(email.encode()).hexdigest()[:8]
-            return f"{sanitized_subject}_Week_{week}_User_{email_hash}"
+            vector_store_name = f"{sanitized_subject}_W{sanitized_week}_U{email_hash}"
         else:
-            return f"{sanitized_subject}_Week_{week}"
+            vector_store_name = f"{sanitized_subject}_W{sanitized_week}"
+        
+        # OpenAI has a 64 character limit on vector store IDs
+        if len(vector_store_name) > 64:
+            # If we're still over the limit, truncate the whole name
+            vector_store_name = vector_store_name[:64]
+            print(f"WARNING: Vector store name truncated to {vector_store_name}")
+        
+        return vector_store_name
     
     def get_or_create_vector_store(self, subject: str, week: str, email: str = None) -> Dict:
         """
@@ -222,7 +269,14 @@ class RAGManager:
         
         Returns:
             Dictionary with file batch information
+        
+        Raises:
+            ValueError: If the vector store ID is invalid or too long
         """
+        # Validate the vector store ID length before making the API call
+        if len(vector_store_id) > 64:
+            raise ValueError(f"Vector store ID is too long ({len(vector_store_id)} chars). Maximum allowed is 64 characters.")
+        
         print(f"Adding file {file_name} to vector store with ID: {vector_store_id}")
         
         # Write the file bytes to a temporary file
@@ -277,8 +331,20 @@ class RAGManager:
             
         Returns:
             List of file information dicts
+        
+        Raises:
+            ValueError: If the vector store ID is invalid or too long
         """
         try:
+            # Add more detailed logging for troubleshooting
+            print(f"Attempting to list files for vector store ID: '{vector_store_id}' (length: {len(vector_store_id)})")
+            
+            # Validate the vector store ID length before making the API call
+            if len(vector_store_id) > 64:
+                # Provide more detailed error message to help with debugging
+                print(f"ERROR: Vector store ID is too long: {len(vector_store_id)} chars. First 20 chars: '{vector_store_id[:20]}...'")
+                raise ValueError(f"Vector store ID is too long ({len(vector_store_id)} chars). Maximum allowed is 64 characters.")
+            
             vector_store_files = self.client.vector_stores.files.list(
                 vector_store_id=vector_store_id
             )
@@ -310,6 +376,13 @@ class RAGManager:
             return files
         except Exception as e:
             print(f"Error listing vector store files: {e}")
+            # Re-raise with more specific information
+            if "string too long" in str(e) or "above_max_length" in str(e):
+                raise ValueError(f"Vector store ID is invalid: {str(e)}")
+            elif "not_found" in str(e):
+                raise ValueError(f"Vector store not found: {vector_store_id}")
+            else:
+                raise
             return []
             
     def get_vector_store_file(self, vector_store_id: str, file_id: str) -> Dict:
@@ -361,8 +434,15 @@ class RAGManager:
             
         Returns:
             Boolean indicating success
+            
+        Raises:
+            ValueError: If the vector store ID is invalid or too long
         """
         try:
+            # Validate the vector store ID length before making the API call
+            if len(vector_store_id) > 64:
+                raise ValueError(f"Vector store ID is too long ({len(vector_store_id)} chars). Maximum allowed is 64 characters.")
+            
             deleted_file = self.client.vector_stores.files.delete(
                 vector_store_id=vector_store_id,
                 file_id=file_id
@@ -911,3 +991,50 @@ IMPORTANT: Avoid duplicating these existing questions:
         )
         
         return questions, data
+
+    def sanitize_vector_store_ids(self, data: Dict) -> Dict:
+        """
+        Scans the data dictionary and fixes any vector store IDs that exceed the 64-character limit.
+        
+        Parameters:
+            data: The data dictionary containing vector store metadata
+            
+        Returns:
+            Updated data dictionary with sanitized vector store IDs
+            
+        Note:
+            This is a fix for existing data that might have vector store IDs exceeding OpenAI's 64-character limit.
+            After applying this fix, you should save the updated data back to storage.
+        """
+        modified = False
+        
+        # Scan through subjects and their vector store metadata
+        for subject in data:
+            if isinstance(data[subject], dict) and "vector_store_metadata" in data[subject]:
+                metadata = data[subject]["vector_store_metadata"]
+                for week in list(metadata.keys()):
+                    # Check the format - could be either a string ID or a dictionary with id/name
+                    if isinstance(metadata[week], dict) and "id" in metadata[week]:
+                        vector_store_id = metadata[week]["id"]
+                        # Check if the ID is too long
+                        if len(vector_store_id) > 64:
+                            print(f"Found oversized vector store ID ({len(vector_store_id)} chars): {vector_store_id}")
+                            # Remove the oversized ID - it's invalid and cannot be used with the API
+                            del metadata[week]
+                            print(f"Removed invalid vector store ID for {subject} week {week}")
+                            modified = True
+                    elif isinstance(metadata[week], str):
+                        vector_store_id = metadata[week]
+                        # Check if the ID is too long
+                        if len(vector_store_id) > 64:
+                            print(f"Found oversized vector store ID ({len(vector_store_id)} chars): {vector_store_id}")
+                            # Remove the oversized ID - it's invalid and cannot be used with the API
+                            del metadata[week]
+                            print(f"Removed invalid vector store ID for {subject} week {week}")
+                            modified = True
+        
+        if modified:
+            print("WARNING: Some vector store IDs were removed from the data because they exceeded OpenAI's 64-character limit.")
+            print("You will need to recreate these vector stores with shorter names.")
+        
+        return data

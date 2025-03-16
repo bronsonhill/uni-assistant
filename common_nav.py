@@ -1,5 +1,4 @@
 import streamlit as st
-import auth
 
 def render_home():
     """Render the home page content"""
@@ -8,17 +7,17 @@ def render_home():
 
 def render_practice():
     """Load and run the practice page"""
-    from features.content import practice_content
+    from features.content.practice import practice_content
     practice_content.run()
 
 def render_add_ai():
     """Load and run the Add with AI page"""
-    from features.content import add_ai_content
+    from features.content.add_ai import add_ai_content
     add_ai_content.run()
 
 def render_tutor():
     """Load and run the Subject Tutor page"""
-    from features.content import tutor_content
+    from features.content.tutor import tutor_content
     tutor_content.run()
 
 def render_assessments():
@@ -28,12 +27,12 @@ def render_assessments():
 
 def render_manage():
     """Load and run the Manage Questions page"""
-    from features.content import manage_content
+    from features.content.manage import manage_content
     manage_content.run()
 
 def render_add_manual():
     """Load and run the Add Manually page"""
-    from features.content import add_manual_content
+    from features.content.add_manual import add_manual_content
     add_manual_content.run()
 
 def render_account():
@@ -49,9 +48,9 @@ def setup_navigation():
     Returns:
         pg: The navigation page object that should be run
     """
-    # Use auth module to check login and subscription status
-    is_logged_in = auth.is_logged_in()
-    is_subscribed = st.session_state.get('is_subscribed', False)
+    # Check login and subscription status using session state directly
+    is_logged_in = st.session_state.get("email") is not None
+    is_subscribed = st.session_state.get('user_subscribed', False)
     
     # Home page is always available
     home = st.Page(render_home, title="Home", icon="🏠", default=True)

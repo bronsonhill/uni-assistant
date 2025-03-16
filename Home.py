@@ -5,9 +5,7 @@ import sys
 from typing import Dict, Optional
 from dotenv import load_dotenv
 import users
-
-# Import our centralized auth module
-import auth
+from st_paywall import add_auth
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -44,6 +42,34 @@ def load_data(email: str = None) -> Dict:
             return json.load(f)
     return {}
 
+def sanitize_data_vector_store_ids(data: Dict) -> Dict:
+    """
+    Sanitize vector store IDs in the data to ensure they comply with OpenAI's 64-character limit.
+    
+    Args:
+        data: The data dictionary containing vector store metadata
+        
+    Returns:
+        Updated data with sanitized vector store IDs
+    """
+    if not data:
+        return data
+        
+    # Initialize the RAG manager to use its sanitization method
+    from rag_manager import RAGManager
+    rag_manager = RAGManager()
+    
+    # Use the RAG manager's sanitize method which returns modified data
+    sanitized_data = rag_manager.sanitize_vector_store_ids(data)
+    
+    # Check if data was modified
+    if sanitized_data != data:
+        print("Vector store IDs were sanitized. Saving updated data.")
+        # Save the sanitized data
+        save_data(sanitized_data)
+    
+    return sanitized_data
+
 def init_rag_manager(email: str = None):
     """
     Initialize RAG manager and load saved vector stores
@@ -61,6 +87,11 @@ def init_rag_manager(email: str = None):
     
     # Load saved vector stores from the data
     data = load_data(email)
+    
+    # Sanitize vector store IDs in the data
+    data = sanitize_data_vector_store_ids(data)
+    
+    # Load the sanitized data
     rag_manager.load_vector_stores_from_data(data, email)
     
     return rag_manager
@@ -254,21 +285,13 @@ def update_question_score(data: Dict, subject: str, week: str, question_idx: int
 
 def get_user_email():
     """
-    Get the current user's email from available sources.
+    Get the user's email from session state
     
     Returns:
-        str: The user's email if available, otherwise None
+        Optional[str]: User email if logged in, None otherwise
     """
-    # First check session_state.user_email (most reliable)
-    if "user_email" in st.session_state:
-        return st.session_state.user_email
-    
-    # Then check session_state.email (set by OAuth)
-    if "email" in st.session_state:
-        return st.session_state.email
-    
-    # No email found
-    return None
+    # Simply check session_state for email - the most reliable source
+    return st.session_state.get("email")
 
 def calculate_weighted_score(scores, decay_factor=0.1):
     """
@@ -331,6 +354,89 @@ def migrate_to_mongodb():
         st.error(f"Failed to migrate data to MongoDB: {str(e)}")
         return False
 
+def force_cleanup_vector_store_data(email: str = None):
+    """
+    Force a cleanup of all vector store data to ensure compliance with OpenAI's limits.
+    
+    Args:
+        email: Optional user email to filter data by ownership
+        
+    Returns:
+        Number of items cleaned up
+    """
+    # Load current data
+    data = load_data(email)
+    
+    # Initialize the RAG manager for sanitization
+    from rag_manager import RAGManager
+    rag_manager = RAGManager()
+    
+    cleanup_count = 0
+    
+    # Process all subjects
+    for subject in list(data.keys()):
+        if not isinstance(data[subject], dict):
+            continue
+            
+        if "vector_store_metadata" not in data[subject]:
+            continue
+            
+        metadata = data[subject]["vector_store_metadata"]
+        
+        # Process all weeks
+        for week in list(metadata.keys()):
+            vector_store_data = metadata[week]
+            
+            # Handle both string IDs and dictionary metadata
+            if isinstance(vector_store_data, dict) and "id" in vector_store_data:
+                vector_store_id = vector_store_data["id"]
+            else:
+                vector_store_id = vector_store_data
+                
+            # Validate the ID length
+            if vector_store_id and len(vector_store_id) > 64:
+                print(f"Removing invalid vector store ID for {subject} week {week}: {len(vector_store_id)} chars")
+                del metadata[week]
+                cleanup_count += 1
+    
+    # Save the cleaned data
+    if cleanup_count > 0:
+        print(f"Removed {cleanup_count} invalid vector store IDs. Saving data...")
+        save_data(data, email)
+        
+    return cleanup_count
+
+def reset_vector_store_id(subject: str, week: str, email: str = None) -> bool:
+    """
+    Reset a specific vector store ID in the data.
+    
+    Args:
+        subject: The subject name
+        week: The week number or identifier
+        email: Optional user email to filter by ownership
+        
+    Returns:
+        Boolean indicating success
+    """
+    # Load data
+    data = load_data(email)
+    
+    # Check if the subject and vector store metadata exist
+    if (subject in data and 
+        isinstance(data[subject], dict) and 
+        "vector_store_metadata" in data[subject] and
+        week in data[subject]["vector_store_metadata"]):
+        
+        # Remove the vector store ID
+        del data[subject]["vector_store_metadata"][week]
+        print(f"Removed vector store ID for {subject} week {week}")
+        
+        # Save the updated data
+        save_data(data, email)
+        return True
+    
+    return False
+
 # Function to render home page content
 def render_home_page():
     """
@@ -340,22 +446,15 @@ def render_home_page():
     # Main title
     st.title("📚 Study Legend")
     
-    # Show welcome message using the centralized auth module
-    auth.show_welcome_message()
+    # Get user email using session state directly (from st-paywall)
+    user_email = st.session_state.get("email")
+    is_logged_in = user_email is not None
     
-    # Get user email if logged in
-    user_email = auth.get_current_user()
-    is_logged_in = auth.is_logged_in()
-    
-    # Show welcome message with user email if authenticated
+    # Show welcome message with user information
     if is_logged_in:
-        st.markdown(f"#### Welcome, {user_email}! 👋")
+        st.success(f"Welcome back, {user_email}!")
     else:
-        st.markdown("""
-        #### 👋 Welcome to Study Legend!
-        
-        Sign in to start creating flashcards, practicing, and using AI to enhance your studying.
-        """)
+        st.info("Welcome to Study Legend! Sign in to save your progress.")
     
     st.markdown("""
     Study Legend helps you study effectively with the help of AI.
@@ -368,27 +467,26 @@ def render_home_page():
     """)
     
     # Display subscription status and benefits
-    if st.session_state.get('is_subscribed'):
+    if is_logged_in and st.session_state.get('is_subscribed'):
         st.success("🌟 **Premium Subscription Active** - Enjoy all premium features!")
         
         # Show subscription details if user is logged in
-        if is_logged_in:
-            # Use cached info since subscription was already verified
-            subscription_info = users.get_subscription_info(user_email, skip_stripe=True)
+        # Use cached info since subscription was already verified
+        subscription_info = users.get_subscription_info(user_email, skip_stripe=True)
+        
+        if subscription_info and subscription_info["active"]:
+            expiry_date = subscription_info.get("end_date", "Unknown")
+            days_remaining = subscription_info.get("days_remaining", 0)
             
-            if subscription_info and subscription_info["active"]:
-                expiry_date = subscription_info.get("end_date", "Unknown")
-                days_remaining = subscription_info.get("days_remaining", 0)
-                
-                # Format the date for display
-                try:
-                    from datetime import datetime
-                    expiry_datetime = datetime.fromisoformat(expiry_date)
-                    formatted_date = expiry_datetime.strftime("%B %d, %Y")
-                except:
-                    formatted_date = expiry_date
-                
-                st.info(f"📅 Your subscription is active until **{formatted_date}** ({days_remaining} days remaining)")
+            # Format the date for display
+            try:
+                from datetime import datetime
+                expiry_datetime = datetime.fromisoformat(expiry_date)
+                formatted_date = expiry_datetime.strftime("%B %d, %Y")
+            except:
+                formatted_date = expiry_date
+            
+            st.info(f"📅 Your subscription is active until **{formatted_date}** ({days_remaining} days remaining)")
     else:
         st.info("Study Legend offers both free and premium features. Sign in to get started!")
         
@@ -427,13 +525,7 @@ def render_home_page():
     if not is_logged_in:
         st.markdown("---")
         st.markdown("### Get Started")
-        add_auth(
-            required=False,
-            login_button_text="Sign in to Study Legend",
-            login_button_color="#FF6F00",
-            login_sidebar=False
-        )
-        
+
 def display_user_stats():
     """Display user statistics"""
     st.subheader("Your Question Stats")
@@ -467,6 +559,33 @@ def display_user_stats():
                         st.success("Migration completed successfully!")
                     else:
                         st.error("Migration failed. See error message above.")
+            
+            st.markdown("### Vector Store Maintenance")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("Clean Up Vector Store IDs"):
+                    with st.spinner("Cleaning up vector store IDs..."):
+                        cleanup_count = force_cleanup_vector_store_data(st.session_state.get('email'))
+                        if cleanup_count > 0:
+                            st.success(f"Cleaned up {cleanup_count} invalid vector store IDs!")
+                            # Reload data
+                            st.session_state.data = load_data(st.session_state.get('email'))
+                            # Force reinitialization of RAG manager
+                            if "rag_manager" in st.session_state:
+                                del st.session_state.rag_manager
+                            st.session_state.rag_manager = init_rag_manager(st.session_state.get('email'))
+                            st.rerun()
+                        else:
+                            st.info("No invalid vector store IDs found.")
+            
+            with col2:
+                if st.button("Check Vector Store ID Compliance"):
+                    with st.spinner("Checking vector store IDs..."):
+                        from rag_manager import RAGManager
+                        rag_manager = RAGManager()
+                        rag_manager.check_vector_store_id_compliance()
 
 # Main app
 def main():
@@ -485,23 +604,23 @@ def main():
         # If there's an error (likely because page config is already set), just continue
         print(f"Note: Page config may have already been set: {e}")
     
-    # Check authentication but don't require it for viewing
-    user_email = auth.require_auth(required=False)
+    # Add login button in sidebar - simple approach using st-paywall
+    add_auth(
+        required=False,
+        login_button_text="Login to Study Legend",
+        login_button_color="#FF6F00",
+        login_sidebar=True
+    )
     
-    # If user is authenticated, check subscription status
-    is_subscribed = False
-    if user_email:
-        is_subscribed = auth.check_subscription(user_email)
-        
-        # Always store user email in session state for consistent access
-        st.session_state.user_email = user_email
+    # Check authentication using session state directly
+    user_email = st.session_state.get("email")
     
-    # Use our helper function to get the most reliable email
-    email_to_use = get_user_email()
+    # If user is authenticated, their subscription status will be in session state
+    is_subscribed = st.session_state.get("user_subscribed", False) if user_email else False
     
     # Initialize session state variables if they don't exist
     if "data" not in st.session_state:
-        st.session_state.data = load_data(email_to_use)
+        st.session_state.data = load_data(user_email)
     if "editing" not in st.session_state:
         st.session_state.editing = False
     if "edit_subject" not in st.session_state:
@@ -510,10 +629,16 @@ def main():
         st.session_state.edit_week = ""
     if "edit_idx" not in st.session_state:
         st.session_state.edit_idx = -1
-    if "rag_manager" not in st.session_state and email_to_use:
-        st.session_state.rag_manager = init_rag_manager(email_to_use)
+    if "rag_manager" not in st.session_state and user_email:
+        st.session_state.rag_manager = init_rag_manager(user_email)
     if "current_view" not in st.session_state:
         st.session_state.current_view = "home"
+    
+    # Force cleanup of vector store data to fix any issues
+    force_cleanup_count = force_cleanup_vector_store_data(user_email)
+    if force_cleanup_count > 0:
+        # Reload data after cleanup
+        st.session_state.data = load_data(user_email)
     
     # Import and set up navigation - do this after subscription check
     from common_nav import setup_navigation

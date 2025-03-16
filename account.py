@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 from datetime import datetime
-from paywall import check_subscription, show_premium_benefits, display_subscription_status
 import users
 from st_paywall import add_auth
 
@@ -9,13 +8,11 @@ def render_account_page():
     """Render the account page content"""
     st.title("👤 Account")
     
-    # Force verification on account page to ensure subscription status is fresh
-    # This helps ensure users always see accurate subscription details on this page
-    # is_subscribed, user_email = check_subscription(required=False, force_verify=True)
+    # Check if user is logged in using st-paywall (which sets session_state.email)
+    user_email = st.session_state.get("email")
     
     # If user is not logged in, show login options
-    user_email = st.session_state.get("email")
-    if user_email:
+    if not user_email:
         st.markdown("### Login or Sign Up")
         st.info("Please log in or sign up to access your account and subscription details.")
         
@@ -87,7 +84,15 @@ def render_account_page():
             st.markdown("#### Upgrade to Premium to unlock all features:")
             
             # Show premium benefits
-            show_premium_benefits()
+            st.markdown("""
+            #### Premium Benefits:
+            
+            - 🔍 **Unlimited AI-generated questions**
+            - 🧠 **Personalized Subject Tutor**
+            - 📊 **Advanced Analytics & Progress Tracking**
+            - 💬 **Priority Support**
+            - 🚀 **Early Access to New Features**
+            """)
             
             # Subscribe button will be shown by st_paywall
             

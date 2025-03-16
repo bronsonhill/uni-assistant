@@ -49,6 +49,32 @@ def save_assessments(assessments_data: Dict) -> None:
     collection.insert_one(assessments_data)
 
 
+def get_user_assessments(user_email: str) -> List[Dict]:
+    """
+    Get assessments for a specific user.
+    
+    Args:
+        user_email (str): Email of the user to get assessments for
+        
+    Returns:
+        List[Dict]: List of assessment objects for the specified user
+    """
+    # Load all assessments
+    assessments_data = load_assessments()
+    
+    # If there are no assessments, return empty list
+    if not assessments_data or "assessments" not in assessments_data:
+        return []
+    
+    # Filter assessments by user_email
+    user_assessments = [
+        assessment for assessment in assessments_data["assessments"]
+        if assessment.get("user_email") == user_email
+    ]
+    
+    return user_assessments
+
+
 def add_assessment(assessments_data: Dict, assessment: Dict) -> Dict:
     """
     Add a new assessment to the data.
