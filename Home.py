@@ -448,7 +448,8 @@ def render_home_page():
     
     # Get user email using session state directly (from st-paywall)
     user_email = st.session_state.get("email")
-    is_logged_in = user_email is not None
+    # Check for both None and empty string
+    is_logged_in = user_email is not None and user_email != ""
     
     # Show welcome message with user information
     if is_logged_in:
