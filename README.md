@@ -1,6 +1,6 @@
 # Study Legend
 
-A Streamlit application for student study management with AI assistance.
+Become a study legend with AI!
 
 ## Features
 
