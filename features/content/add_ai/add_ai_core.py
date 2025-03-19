@@ -17,6 +17,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from Home import load_data, save_data, add_question, get_user_email
 from rag_manager import RAGManager
 
+# Import vector store ID extraction function from shared module
+from features.content.shared.vector_store_manager import extract_vector_store_id
+
 # Import vector store ID extraction (forward reference - will be defined when module is fully loaded)
 extract_vector_store_id = None
 
@@ -55,7 +58,7 @@ def init_rag_manager(user_email: str):
             return False
     return True
 
-def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: str):
+def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: str, num_questions: int = 5):
     """
     Process the uploaded file and generate questions
     
@@ -64,12 +67,14 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
         subject: The subject for the questions
         week: The week number for the questions
         user_email: The user's email address
+        num_questions: Number of questions to generate (default: 5)
     
     Returns:
         List of generated questions
     """
     st.session_state.generation_in_progress = True
     st.session_state.api_error = None
+    st.session_state.num_questions = num_questions
     
     try:
         # Handle uploaded file - support multiple files or single file
@@ -109,12 +114,12 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
         vector_store_id = create_vector_store(subject, week, user_email, file_bytes, file_name)
         
         if not vector_store_id:
-            st.session_state.api_error = "Could not create vector store for the uploaded file."
+            st.session_state.api_error = "Could not create vector store for the uploaded file. Check the logs for details."
             st.session_state.generation_in_progress = False
             return []
             
         # Generate questions from the vector store
-        return generate_questions_from_vector_store(vector_store_id, subject, week)
+        return generate_questions_from_vector_store(vector_store_id, subject, week, num_questions)
     
     except Exception as e:
         print(f"Error processing file: {e}")
@@ -122,7 +127,7 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
         st.session_state.generation_in_progress = False
         return []
 
-def generate_questions_without_upload(subject: str, week: int, user_email: str):
+def generate_questions_without_upload(subject: str, week: int, user_email: str, num_questions: int = 5):
     """
     Generate questions without uploading a file (uses existing vector store)
     
@@ -130,12 +135,14 @@ def generate_questions_without_upload(subject: str, week: int, user_email: str):
         subject: The subject for the questions
         week: The week number for the questions
         user_email: The user's email address
+        num_questions: Number of questions to generate (default: 5)
         
     Returns:
         List of generated questions
     """
     st.session_state.generation_in_progress = True
     st.session_state.api_error = None
+    st.session_state.num_questions = num_questions
     
     try:
         # Initialize the RAG manager
@@ -165,7 +172,7 @@ def generate_questions_without_upload(subject: str, week: int, user_email: str):
             return []
         
         # Generate questions from the vector store
-        return generate_questions_from_vector_store(vector_store_id, subject, week)
+        return generate_questions_from_vector_store(vector_store_id, subject, week, num_questions)
         
     except Exception as e:
         print(f"Error generating questions without upload: {e}")
@@ -249,9 +256,12 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
         # If we don't have a vector store, create one
         if not vector_store_id:
             # Create a new vector store
-            vector_store_id = st.session_state.rag_manager.create_vector_store(
-                name=f"{subject}_Week_{week}"
+            vector_store = st.session_state.rag_manager.get_or_create_vector_store(
+                subject=subject,
+                week=str(week),
+                email=user_email
             )
+            vector_store_id = vector_store["id"]
             
             # Save the vector store ID in the data
             if subject not in st.session_state.data:
@@ -269,13 +279,16 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
             save_data(st.session_state.data, user_email)
         
         # Add the file to the vector store
-        st.session_state.rag_manager.add_file_to_vector_store(
-            vector_store_id=vector_store_id,
-            file_bytes=file_bytes,
-            file_name=file_name
-        )
-        
-        return vector_store_id
+        try:
+            st.session_state.rag_manager.add_file_to_vector_store(
+                vector_store_id=vector_store_id,
+                file_bytes=file_bytes,
+                file_name=file_name
+            )
+            return vector_store_id
+        except Exception as upload_error:
+            print(f"Error adding file to vector store: {upload_error}")
+            return None
     except Exception as e:
         print(f"Error creating vector store: {e}")
         return None
@@ -322,7 +335,7 @@ def delete_vector_store(subject: str, week: str, user_email: str) -> bool:
     
     return False
 
-def generate_questions_from_vector_store(vector_store_id: str, subject: str, week: int) -> List[Dict[str, Any]]:
+def generate_questions_from_vector_store(vector_store_id: str, subject: str, week: int, num_questions: int = 5) -> List[Dict[str, Any]]:
     """
     Generate questions from a vector store
     
@@ -330,6 +343,7 @@ def generate_questions_from_vector_store(vector_store_id: str, subject: str, wee
         vector_store_id: The vector store ID
         subject: The subject for the questions
         week: The week number for the questions
+        num_questions: Number of questions to generate (default: 5)
         
     Returns:
         List of generated questions
@@ -349,11 +363,12 @@ def generate_questions_from_vector_store(vector_store_id: str, subject: str, wee
             str(week) != "vector_store_metadata"):
             existing_questions = st.session_state.data[subject][str(week)]
         
-        # Generate questions from the vector store
-        new_questions = st.session_state.rag_manager.generate_questions_from_vector_store(
+        # Generate questions using generate_questions_with_rag instead
+        # Default to 5 questions if num_questions is not specified
+        new_questions = st.session_state.rag_manager.generate_questions_with_rag(
             subject=subject,
-            week=week,
-            vector_store_id=vector_store_id,
+            week=str(week),
+            num_questions=num_questions,
             existing_questions=existing_questions
         )
         

@@ -48,9 +48,20 @@ def display_file_upload(is_subscribed: bool):
             key="week_input"
         )
     
+    # Number of questions slider
+    num_questions = st.slider(
+        "Number of questions to generate",
+        min_value=1,
+        max_value=20,
+        value=5,
+        step=1,
+        key="num_questions_slider"
+    )
+    
     # Save subject and week to session state
     st.session_state.generation_subject = subject
     st.session_state.generation_week = week
+    st.session_state.num_questions = num_questions
     
     # File upload
     uploaded_file = st.file_uploader(
@@ -76,8 +87,9 @@ def display_file_upload(is_subscribed: bool):
                         questions = process_uploaded_file(
                             uploaded_file, 
                             subject, 
-                            week, 
-                            st.session_state.email
+                            week,
+                            st.session_state.email,
+                            num_questions=st.session_state.num_questions
                         )
                         st.session_state.generated_questions = questions
                         st.session_state.selected_questions = {}
