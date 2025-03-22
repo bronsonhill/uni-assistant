@@ -21,8 +21,13 @@ from ai_feedback import evaluate_answer, chat_about_question
 
 def display_self_rating_buttons(current_q: Dict, user_answer: str, user_email: str):
     """Display self-rating buttons and handle rating submission"""
+    print(f"\n=== Starting self-rating process ===")
+    print(f"Current question: {current_q.get('subject')} - Week {current_q.get('week')} - Question {current_q.get('question_idx')}")
+    print(f"User email: {user_email}")
+    
     # Check if rating has already been submitted for this question
     if st.session_state.rating_submitted:
+        print("Rating already submitted for this question")
         st.success("Rating submitted! Continue to the next question or try another.")
     else:
         rating_cols = st.columns(5)
@@ -32,20 +37,39 @@ def display_self_rating_buttons(current_q: Dict, user_answer: str, user_email: s
                 rating_emoji = get_score_emoji(rating_value)
                 btn_label = f"{rating_emoji} {rating_value}"
                 if st.button(btn_label, key=f"self_rate_{rating_value}", use_container_width=True, help=f"Rate your answer as {rating_value}/5"):
-                    # Save the self-rated score and user answer
-                    if "question_idx" in current_q:
-                        st.session_state.data = save_score_with_answer(
-                            st.session_state.data,
-                            current_q,
-                            rating_value,
-                            user_answer,
-                            user_email
-                        )
-                        # Use imported save_data directly
-                        save_data(st.session_state.data, user_email)
-                        st.session_state.rating_submitted = True
-                        st.success(f"Saved self-rating: {rating_value}/5")
-                        st.rerun()
+                    print(f"\n=== Rating button clicked ===")
+                    print(f"Selected rating: {rating_value}")
+                    try:
+                        # Save the self-rated score and user answer
+                        if "question_idx" in current_q:
+                            print("Updating in-memory data...")
+                            # First update the data in memory
+                            st.session_state.data = save_score_with_answer(
+                                st.session_state.data,
+                                current_q,
+                                rating_value,
+                                user_answer,
+                                user_email
+                            )
+                            print("In-memory data updated successfully")
+                            
+                            print("Saving to MongoDB...")
+                            # Then persist to storage
+                            save_data(st.session_state.data, user_email)
+                            print("MongoDB save completed")
+                            
+                            # Update session state
+                            st.session_state.rating_submitted = True
+                            st.success(f"Saved self-rating: {rating_value}/5")
+                            print("Session state updated")
+                            st.rerun()
+                    except Exception as e:
+                        error_msg = f"Failed to save rating: {str(e)}"
+                        print(f"ERROR: {error_msg}")
+                        st.error(error_msg)
+                        # Log the error for debugging
+                        import traceback
+                        print(f"Full error traceback:\n{traceback.format_exc()}")
 
 def display_ai_feedback(feedback_data: Dict):
     """Display AI feedback for a question"""
@@ -80,10 +104,7 @@ def display_chat_interface(current_q: Dict, user_answer: str, feedback: Dict):
     # Create a unique key for chat input based on question
     chat_input_key = f"chat_input_{current_q['subject']}_{current_q['week']}_{current_q['question_idx']}"
     
-    # First define the chat input (this will appear at the bottom of the UI)
-    user_message = st.chat_input("Ask a question about this concept...", key=chat_input_key)
-    
-    # Then display all messages in the container
+    # First display all messages in the container
     with chat_message_container:
         for msg in st.session_state.chat_messages:
             with st.chat_message(msg["role"]):
@@ -132,6 +153,9 @@ def display_chat_interface(current_q: Dict, user_answer: str, feedback: Dict):
             
             # Rerun to reset the input field and update the UI
             st.rerun()
+    
+    # Define the chat input after the messages container (this will appear at the bottom)
+    user_message = st.chat_input("Ask a question about this concept...", key=chat_input_key)
 
 def display_knowledge_level_selector():
     """Display and handle the knowledge level filter selector"""
@@ -306,6 +330,38 @@ def display_setup_screen(is_authenticated):
             key="practice_count"
         )
     
+    # Add score filter
+    st.markdown("##### Score Filter")
+    st.caption("Filter out questions you've already mastered:")
+    
+    # Initialize max_score_threshold in session state if not exists
+    if "max_score_threshold" not in st.session_state:
+        st.session_state.max_score_threshold = 5  # Default to showing all questions
+    
+    # Create score filter slider
+    max_score = st.slider(
+        "Maximum score to practice:",
+        min_value=0,
+        max_value=5,
+        value=st.session_state.max_score_threshold,
+        help="Only practice questions you've scored at or below this level. Lower values help you focus on material you need to improve on."
+    )
+    
+    # Update the session state with the selected value
+    st.session_state.max_score_threshold = max_score
+    
+    # Show additional explanation for the selected level
+    score_explanations = {
+        0: "You'll only practice questions you've never seen before or scored 0 on.",
+        1: "You'll practice questions you're struggling with (scored 0-1).",
+        2: "You'll practice questions needing improvement (scored 0-2).",
+        3: "You'll practice questions with moderate knowledge (scored 0-3).",
+        4: "You'll practice questions with good knowledge (scored 0-4).",
+        5: "You'll practice all questions regardless of your score."
+    }
+    
+    st.info(score_explanations[max_score])
+    
     # Start practice button
     start_button = st.button("Start Practice", type="primary", use_container_width=True)
     
@@ -330,14 +386,23 @@ def display_setup_screen(is_authenticated):
                 for i, q in enumerate(questions_list):
                     # Only add questions that have questions
                     if "question" in q and q["question"]:
-                        queue.append({
-                            "subject": subject,
-                            "week": week,
-                            "question_idx": i,  # Change from "index" to "question_idx" to match expected format
-                            "question": q["question"],  # Include the actual question text
-                            "answer": q["answer"],      # Include the answer text
-                            "idx": i  # Add idx key for question_key tracking
-                        })
+                        # Check if the question meets the score threshold
+                        should_include = True
+                        if "scores" in q and q["scores"]:
+                            # Get the most recent score
+                            latest_score = q["scores"][-1]["score"]
+                            if latest_score > st.session_state.max_score_threshold:
+                                should_include = False
+                        
+                        if should_include:
+                            queue.append({
+                                "subject": subject,
+                                "week": week,
+                                "question_idx": i,  # Change from "index" to "question_idx" to match expected format
+                                "question": q["question"],  # Include the actual question text
+                                "answer": q["answer"],      # Include the answer text
+                                "idx": i  # Add idx key for question_key tracking
+                            })
         
         # Shuffle if random mode
         if practice_mode == "Random":
@@ -553,38 +618,34 @@ def display_practice_question(question_data, is_authenticated, user_email):
         with col3:
             # Always show next question button to allow skipping questions
             if st.button("Next Question →", use_container_width=True):
+                print("\n=== Next Question button clicked ===")
                 # Save the current rating before moving to the next question (if authenticated)
-                if is_authenticated and st.session_state.show_answer and "self_rating" in st.session_state:
+                if is_authenticated and st.session_state.show_answer:
+                    print("User is authenticated and answer is shown")
                     # Get the self rating from the session state
                     self_rating = st.session_state.get(f"self_rating_{st.session_state.current_question_idx}")
+                    print(f"Self rating from session state: {self_rating}")
                     
                     if self_rating is not None and user_email:
-                        # Update the score in both data structures
-                        from features.content.practice.practice_core import update_question_score
-                        st.session_state.data = update_question_score(
-                            st.session_state.data,
-                            question_data["subject"],
-                            question_data["week"],
-                            question_data["idx"],
-                            self_rating,
-                            user_answer,
-                            user_email
-                        )
-                        
-                        # Update in MongoDB directly as well
+                        print(f"Attempting to save rating {self_rating} for user {user_email}")
                         try:
-                            from mongodb.queue_cards import update_single_question_score
-                            update_single_question_score(
-                                user_email,
-                                question_data["subject"],
-                                question_data["week"],
-                                question_data["idx"],
+                            # Update the score using save_score_with_answer
+                            st.session_state.data = save_score_with_answer(
+                                st.session_state.data,
+                                {
+                                    "subject": question_data["subject"],
+                                    "week": question_data["week"],
+                                    "question_idx": question_data["idx"]
+                                },
                                 self_rating,
-                                user_answer
+                                user_answer,
+                                user_email
                             )
+                            print("Score saved successfully")
                         except Exception as e:
-                            # Log but continue if direct MongoDB update fails
-                            print(f"Error updating score in MongoDB: {str(e)}")
+                            print(f"Error saving score: {str(e)}")
+                            import traceback
+                            print(f"Full error traceback:\n{traceback.format_exc()}")
                 
                 # Move to the next question
                 go_to_next_question()

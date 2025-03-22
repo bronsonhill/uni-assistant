@@ -10,16 +10,10 @@ from st_paywall import add_auth
 # Load environment variables from .env file if it exists
 load_dotenv()
 
-# Data structure: {subject: {week: [{"question": "...", "answer": "..."}]}}
-DATA_FILE = "queue_cards.json"
-
-# Flag to control whether to use MongoDB or JSON files
-USE_MONGODB = True
-
 # Core data functions
 def load_data(email: str = None) -> Dict:
     """
-    Load queue cards data from storage (MongoDB or JSON file)
+    Load queue cards data from MongoDB
     
     Args:
         email: Optional user email to filter data by ownership
@@ -27,20 +21,12 @@ def load_data(email: str = None) -> Dict:
     Returns:
         Dict: The queue cards data
     """
-    if USE_MONGODB:
-        try:
-            import mongodb
-            return mongodb.load_data(email)
-        except Exception as e:
-            st.warning(f"Error loading from MongoDB, falling back to JSON: {str(e)}")
-            # Fall back to JSON on error
-            pass
-    
-    # Load from JSON file
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return {}
+    try:
+        import mongodb
+        return mongodb.load_data(email)
+    except Exception as e:
+        st.error(f"Error loading data from MongoDB: {str(e)}")
+        return {}
 
 def sanitize_data_vector_store_ids(data: Dict) -> Dict:
     """
@@ -98,29 +84,21 @@ def init_rag_manager(email: str = None):
 
 def save_data(data: Dict, email: str = None) -> None:
     """
-    Save queue cards data to storage (MongoDB or JSON file)
+    Save queue cards data to MongoDB
     
     Args:
         data: The queue cards data to save
         email: Optional user email to associate with the saved data
     """
-    if USE_MONGODB:
-        try:
-            import mongodb
-            mongodb.save_data(data, email)
-            return
-        except Exception as e:
-            st.warning(f"Error saving to MongoDB, falling back to JSON: {str(e)}")
-            # Fall back to JSON on error
-            pass
-    
-    # Save to JSON file
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+    try:
+        import mongodb
+        mongodb.save_data(data, email)
+    except Exception as e:
+        st.error(f"Error saving data to MongoDB: {str(e)}")
 
 def add_question(data: Dict, subject: str, week: int, question: str, answer: Optional[str] = None, email: str = None) -> Dict:
     """
-    Add a new question to the data
+    Add a new question to the data in MongoDB
     
     Args:
         data: The data dictionary
@@ -128,41 +106,38 @@ def add_question(data: Dict, subject: str, week: int, question: str, answer: Opt
         week: Week number
         question: Question text
         answer: Answer text (optional)
-        email: User's email (optional) to associate with this question
-    
+        email: User's email (optional)
+        
     Returns:
         Updated data dictionary
     """
-    if USE_MONGODB:
-        try:
-            import mongodb
-            return mongodb.add_question(data, subject, week, question, answer, email)
-        except Exception as e:
-            st.warning(f"Error using MongoDB, falling back to JSON: {str(e)}")
-            # Fall back to JSON implementation
-            pass
-    
-    # Original implementation for JSON
-    if subject not in data:
-        data[subject] = {}
-    
-    week_str = str(week)
-    if week_str not in data[subject]:
-        data[subject][week_str] = []
-    
-    # Add the question with score tracking
-    data[subject][week_str].append({
-        "question": question,
-        "answer": answer or "",
-        "scores": [],  # Will store score history with timestamps
-        "last_practiced": None  # Will track when it was last practiced
-    })
-    
+    try:
+        import mongodb
+        return mongodb.add_question(data, subject, week, question, answer, email)
+    except Exception as e:
+        st.error(f"Error adding question to MongoDB: {str(e)}")
+        
+        # Create minimal structure if adding to MongoDB failed
+        if subject not in data:
+            data[subject] = {}
+        
+        week_str = str(week)
+        if week_str not in data[subject]:
+            data[subject][week_str] = []
+        
+        # Add the question with score tracking
+        data[subject][week_str].append({
+            "question": question,
+            "answer": answer or "",
+            "scores": [],
+            "last_practiced": None
+        })
+        
     return data
 
 def delete_question(data: Dict, subject: str, week: int, question_idx: int, email: str = None) -> Dict:
     """
-    Delete a question from the data
+    Delete a question from MongoDB
     
     Args:
         data: The data dictionary
@@ -174,24 +149,22 @@ def delete_question(data: Dict, subject: str, week: int, question_idx: int, emai
     Returns:
         Updated data dictionary
     """
-    if USE_MONGODB:
-        try:
-            import mongodb
-            return mongodb.delete_question(data, subject, week, question_idx, email)
-        except Exception as e:
-            st.warning(f"Error using MongoDB, falling back to JSON: {str(e)}")
-            # Fall back to JSON implementation
-            pass
-    
-    # Original implementation for JSON
-    week_str = str(week)
-    if subject in data and week_str in data[subject] and question_idx < len(data[subject][week_str]):
-        data[subject][week_str].pop(question_idx)
+    try:
+        import mongodb
+        return mongodb.delete_question(data, subject, week, question_idx, email)
+    except Exception as e:
+        st.error(f"Error deleting question from MongoDB: {str(e)}")
+        
+        # Fallback deletion from in-memory data if MongoDB fails
+        week_str = str(week)
+        if subject in data and week_str in data[subject] and question_idx < len(data[subject][week_str]):
+            data[subject][week_str].pop(question_idx)
+            
     return data
 
 def update_question(data: Dict, subject: str, week: int, question_idx: int, new_question: str, new_answer: str, email: str = None) -> Dict:
     """
-    Update an existing question
+    Update a question in MongoDB
     
     Args:
         data: The data dictionary
@@ -201,37 +174,35 @@ def update_question(data: Dict, subject: str, week: int, question_idx: int, new_
         new_question: New question text
         new_answer: New answer text
         email: User's email (optional)
-    
+        
     Returns:
         Updated data dictionary
     """
-    if USE_MONGODB:
-        try:
-            import mongodb
-            return mongodb.update_question(data, subject, week, question_idx, new_question, new_answer, email)
-        except Exception as e:
-            st.warning(f"Error using MongoDB, falling back to JSON: {str(e)}")
-            # Fall back to JSON implementation
-            pass
-    
-    # Original implementation for JSON
-    week_str = str(week)
-    if subject in data and week_str in data[subject] and question_idx < len(data[subject][week_str]):
-        # Keep existing scores and tracking when updating a question
-        existing_scores = data[subject][week_str][question_idx].get("scores", [])
-        last_practiced = data[subject][week_str][question_idx].get("last_practiced", None)
+    try:
+        import mongodb
+        return mongodb.update_question(data, subject, week, question_idx, new_question, new_answer, email)
+    except Exception as e:
+        st.error(f"Error updating question in MongoDB: {str(e)}")
         
-        data[subject][week_str][question_idx] = {
-            "question": new_question,
-            "answer": new_answer,
-            "scores": existing_scores,
-            "last_practiced": last_practiced
-        }
+        # Fallback update in in-memory data if MongoDB fails
+        week_str = str(week)
+        if subject in data and week_str in data[subject] and question_idx < len(data[subject][week_str]):
+            # Keep existing scores and tracking when updating a question
+            existing_scores = data[subject][week_str][question_idx].get("scores", [])
+            last_practiced = data[subject][week_str][question_idx].get("last_practiced", None)
+            
+            data[subject][week_str][question_idx] = {
+                "question": new_question,
+                "answer": new_answer,
+                "scores": existing_scores,
+                "last_practiced": last_practiced
+            }
+            
     return data
 
 def update_question_score(data: Dict, subject: str, week: str, question_idx: int, score: int, user_answer: str = None, email: str = None) -> Dict:
     """
-    Update the score for a specific question
+    Update the score for a specific question in MongoDB
     
     Args:
         data: The data dictionary
@@ -245,42 +216,34 @@ def update_question_score(data: Dict, subject: str, week: str, question_idx: int
     Returns:
         Updated data dictionary
     """
-    if USE_MONGODB:
-        try:
-            import mongodb
-            return mongodb.update_question_score(data, subject, week, question_idx, score, user_answer, email)
-        except Exception as e:
-            st.warning(f"Error using MongoDB, falling back to JSON: {str(e)}")
-            # Fall back to JSON implementation
-            pass
-    
-    # Original implementation for JSON
-    import time
-    
-    if subject in data and week in data[subject] and question_idx < len(data[subject][week]):
-        # Get the current timestamp
-        current_time = int(time.time())
+    try:
+        import mongodb
+        return mongodb.update_question_score(data, subject, week, question_idx, score, user_answer, email)
+    except Exception as e:
+        st.error(f"Error updating question score in MongoDB: {str(e)}")
         
-        # Initialize scores list if it doesn't exist
-        if "scores" not in data[subject][week][question_idx]:
-            data[subject][week][question_idx]["scores"] = []
+        # Fallback update in in-memory data if MongoDB fails
+        import time
+        week_str = str(week) if isinstance(week, int) else week
+        
+        if subject in data and week_str in data[subject] and question_idx < len(data[subject][week_str]):
+            # Add current timestamp and score
+            timestamp = int(time.time())
             
-        # Create score entry
-        score_entry = {
-            "score": score,
-            "timestamp": current_time
-        }
-        
-        # Add user answer if provided
-        if user_answer is not None:
-            score_entry["user_answer"] = user_answer
+            if "scores" not in data[subject][week_str][question_idx]:
+                data[subject][week_str][question_idx]["scores"] = []
+                
+            score_entry = {
+                "score": score,
+                "timestamp": timestamp
+            }
             
-        # Add the new score with timestamp and user answer
-        data[subject][week][question_idx]["scores"].append(score_entry)
-        
-        # Update last practiced timestamp
-        data[subject][week][question_idx]["last_practiced"] = current_time
-    
+            if user_answer:
+                score_entry["user_answer"] = user_answer
+                
+            data[subject][week_str][question_idx]["scores"].append(score_entry)
+            data[subject][week_str][question_idx]["last_practiced"] = timestamp
+            
     return data
 
 def get_user_email():
@@ -295,7 +258,7 @@ def get_user_email():
 
 def calculate_weighted_score(scores, decay_factor=0.1):
     """
-    Calculate a time-weighted score for a question based on score history
+    Calculate a time-weighted score for a question based on score history using MongoDB
     
     Args:
         scores: List of score objects with score and timestamp
@@ -304,55 +267,38 @@ def calculate_weighted_score(scores, decay_factor=0.1):
     Returns:
         Weighted score (float) or None if no scores available
     """
-    if USE_MONGODB:
-        try:
-            import mongodb
-            return mongodb.calculate_weighted_score(scores, decay_factor)
-        except Exception:
-            # Fall back to JSON implementation (silently - no need for warning here)
-            pass
-    
-    # Original implementation
-    import time
-    import math
-    
-    if not scores:
-        return None
-    
-    current_time = time.time()
-    total_weight = 0
-    total_weighted_score = 0
-    
-    for score_obj in scores:
-        score = score_obj["score"]
-        timestamp = score_obj["timestamp"]
-        
-        # Calculate time difference in days
-        time_diff = (current_time - timestamp) / (60 * 60 * 24)  # Convert seconds to days
-        
-        # Exponential decay weight based on recency
-        weight = math.exp(-decay_factor * time_diff)
-        
-        total_weighted_score += score * weight
-        total_weight += weight
-    
-    if total_weight == 0:  # Avoid division by zero
-        return None
-        
-    return total_weighted_score / total_weight
-
-def migrate_to_mongodb():
-    """
-    Migrate data from JSON files to MongoDB.
-    This function can be called to trigger a one-time migration.
-    """
     try:
         import mongodb
-        mongodb.migrate_json_to_mongodb()
-        return True
+        return mongodb.calculate_weighted_score(scores, decay_factor)
     except Exception as e:
-        st.error(f"Failed to migrate data to MongoDB: {str(e)}")
-        return False
+        # Fall back to in-memory calculation if MongoDB function fails
+        import time
+        import math
+        
+        if not scores:
+            return None
+        
+        current_time = time.time()
+        total_weight = 0
+        total_weighted_score = 0
+        
+        for score_obj in scores:
+            score = score_obj["score"]
+            timestamp = score_obj["timestamp"]
+            
+            # Calculate time difference in days
+            time_diff = (current_time - timestamp) / (60 * 60 * 24)  # Convert seconds to days
+            
+            # Exponential decay weight based on recency
+            weight = math.exp(-decay_factor * time_diff)
+            
+            total_weighted_score += score * weight
+            total_weight += weight
+        
+        if total_weight > 0:
+            return total_weighted_score / total_weight
+        else:
+            return None
 
 def force_cleanup_vector_store_data(email: str = None):
     """
@@ -552,15 +498,6 @@ def display_user_stats():
     # Add MongoDB migration option for admins
     if st.session_state.get('email') == "admin@example.com":  # Replace with your admin email
         with st.expander("Admin Options"):
-            st.markdown("### Database Migration")
-            if st.button("Migrate Data to MongoDB"):
-                with st.spinner("Migrating data to MongoDB..."):
-                    success = migrate_to_mongodb()
-                    if success:
-                        st.success("Migration completed successfully!")
-                    else:
-                        st.error("Migration failed. See error message above.")
-            
             st.markdown("### Vector Store Maintenance")
             
             col1, col2 = st.columns(2)

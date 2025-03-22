@@ -52,7 +52,7 @@ def display_file_upload(is_subscribed: bool):
     num_questions = st.slider(
         "Number of questions to generate",
         min_value=1,
-        max_value=20,
+        max_value=10,
         value=5,
         step=1,
         key="num_questions_slider"

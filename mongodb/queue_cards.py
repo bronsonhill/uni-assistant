@@ -19,7 +19,12 @@ def load_data(email: str = None) -> Dict:
         subject: {
             week: [
                 {"question": "...", "answer": "...", "scores": [...], "last_practiced": timestamp}
-            ]
+            ],
+            "file_metadata": {
+                week_str: [
+                    {"file_id": "...", "file_name": "...", "upload_date": "..."}
+                ]
+            }
         }
     }
     
@@ -68,6 +73,19 @@ def load_data(email: str = None) -> Dict:
                 data[subject]["vector_store_metadata"].update(doc["vector_store_metadata"])
                 continue
             
+            # Handle file metadata if present
+            if "file_metadata" in doc:
+                if "file_metadata" not in data[subject]:
+                    data[subject]["file_metadata"] = {}
+                
+                # Update with new file metadata
+                for week_str, files in doc["file_metadata"].items():
+                    if week_str not in data[subject]["file_metadata"]:
+                        data[subject]["file_metadata"][week_str] = []
+                    
+                    data[subject]["file_metadata"][week_str].extend(files)
+                continue
+            
             # Regular question data
             week = doc.get("week")
             if week and "questions" in doc:
@@ -86,6 +104,7 @@ def save_data(data: Dict, email: str = None) -> None:
     Structure in MongoDB:
     - Each subject+week combination stored as a document
     - Vector store metadata stored separately
+    - File metadata stored separately
     - Each document is associated with user email if provided
     
     Args:
@@ -127,6 +146,20 @@ def save_data(data: Dict, email: str = None) -> None:
                 else:
                     print(f"Adding legacy document (no email) for subject: {subject}, vector_store_metadata")
                 collection.insert_one(doc)
+            # Handle file metadata
+            elif week == "file_metadata":
+                doc = {
+                    "subject": subject,
+                    "file_metadata": questions,
+                    "updated_at": int(time.time())
+                }
+                # Add email if provided
+                if email:
+                    doc["email"] = email
+                    print(f"Adding document with email: {email} for subject: {subject}, file_metadata")
+                else:
+                    print(f"Adding legacy document (no email) for subject: {subject}, file_metadata")
+                collection.insert_one(doc)
             else:
                 # Regular questions - store in batches of 100 to avoid document size limits
                 for i in range(0, len(questions), 100):
@@ -144,6 +177,73 @@ def save_data(data: Dict, email: str = None) -> None:
                     else:
                         print(f"Adding legacy document (no email) for subject: {subject}, week: {week}, questions: {len(batch)}")
                     collection.insert_one(doc)
+
+
+def add_file_metadata(data: Dict, subject: str, week: int, file_id: str, file_name: str, email: str = None) -> Dict:
+    """
+    Add file metadata to the data.
+    
+    Args:
+        data: The data dictionary
+        subject: Subject name
+        week: Week number
+        file_id: OpenAI file ID
+        file_name: Original file name
+        email: User's email to associate with this file (optional)
+    
+    Returns:
+        Updated data dictionary
+    """
+    if subject not in data:
+        data[subject] = {}
+    
+    # Initialize file_metadata structure if it doesn't exist
+    if "file_metadata" not in data[subject]:
+        data[subject]["file_metadata"] = {}
+        
+    week_str = str(week)
+    if week_str not in data[subject]["file_metadata"]:
+        data[subject]["file_metadata"][week_str] = []
+        
+    # Add the file metadata
+    file_metadata = {
+        "file_id": file_id,
+        "file_name": file_name,
+        "upload_date": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    # Add to the list of files for this week
+    data[subject]["file_metadata"][week_str].append(file_metadata)
+    
+    # Save the updated data to MongoDB
+    save_data(data, email)
+    
+    return data
+
+
+def get_file_metadata(data: Dict, subject: str, week: int) -> List[Dict[str, str]]:
+    """
+    Get file metadata for a subject and week.
+    
+    Args:
+        data: The data dictionary
+        subject: Subject name
+        week: Week number
+    
+    Returns:
+        List of file metadata dictionaries
+    """
+    if subject not in data:
+        return []
+        
+    if "file_metadata" not in data[subject]:
+        return []
+        
+    week_str = str(week)
+    if week_str not in data[subject]["file_metadata"]:
+        return []
+        
+    return data[subject]["file_metadata"][week_str]
 
 
 def add_question(data: Dict, subject: str, week: int, question: str, answer: Optional[str] = None, email: str = None) -> Dict:
@@ -247,48 +347,126 @@ def update_question(data: Dict, subject: str, week: int, question_idx: int, new_
 
 def update_question_score(data: Dict, subject: str, week: str, question_idx: int, score: int, user_answer: str = None, email: str = None) -> Dict:
     """
-    Update the score for a specific question
-    
-    Args:
-        data: The data dictionary
-        subject: Subject name
-        week: Week number (as string)
-        question_idx: Index of the question
-        score: Score value (0-10)
-        user_answer: Optional user's answer to log
-        email: User's email (optional)
-        
-    Returns:
-        Updated data dictionary
+    Update the score for a specific question in MongoDB with improved error handling and atomic updates.
     """
-    if subject in data and week in data[subject] and question_idx < len(data[subject][week]):
-        # Get the current timestamp
-        current_time = int(time.time())
+    print(f"\n=== MongoDB update_question_score called ===")
+    print(f"Subject: {subject}, Week: {week}, Question idx: {question_idx}")
+    print(f"Score: {score}, User email: {email}")
+    
+    try:
+        collection = get_collection(QUEUE_CARDS_COLLECTION)
+        print("Got MongoDB collection")
         
-        # Initialize scores list if it doesn't exist
-        if "scores" not in data[subject][week][question_idx]:
-            data[subject][week][question_idx]["scores"] = []
+        # Validate inputs
+        if not isinstance(score, int) or score < 1 or score > 5:
+            raise ValueError(f"Invalid score value: {score}. Score must be between 1 and 5.")
             
-        # Create score entry
+        # Create the score entry
+        timestamp = int(time.time())
         score_entry = {
             "score": score,
-            "timestamp": current_time
+            "timestamp": timestamp
         }
-        
-        # Add user answer if provided
-        if user_answer is not None:
+        if user_answer:
             score_entry["user_answer"] = user_answer
             
-        # Add the new score with timestamp and user answer
-        data[subject][week][question_idx]["scores"].append(score_entry)
+        print(f"Created score entry: {score_entry}")
+            
+        # Build the query
+        query = {
+            "subject": subject,
+            "week": week
+        }
+        if email:
+            query["email"] = email
+            
+        print(f"MongoDB query: {query}")
+            
+        # Find the document containing this question
+        doc = collection.find_one(query)
+        print(f"Found document: {bool(doc)}")
         
-        # Update last practiced timestamp
-        data[subject][week][question_idx]["last_practiced"] = current_time
+        if not doc:
+            print(f"No document found for subject {subject}, week {week}")
+            # Create new document
+            print("Creating new document...")
+            new_doc = {
+                "subject": subject,
+                "week": week,
+                "email": email,
+                "questions": [],
+                "updated_at": timestamp
+            }
+            # Ensure we have enough slots for the question index
+            while len(new_doc["questions"]) <= question_idx:
+                new_doc["questions"].append({"scores": [], "last_practiced": None})
+            collection.insert_one(new_doc)
+            print("New document created")
+            doc = new_doc
+            
+        # Update the specific question's scores
+        questions = doc.get("questions", [])
+        if question_idx >= len(questions):
+            print(f"Question index {question_idx} out of range, extending questions array")
+            # Extend the questions array if needed
+            while len(questions) <= question_idx:
+                questions.append({"scores": [], "last_practiced": None})
+            
+        if "scores" not in questions[question_idx]:
+            print("Initializing scores array for question")
+            questions[question_idx]["scores"] = []
+            
+        questions[question_idx]["scores"].append(score_entry)
+        questions[question_idx]["last_practiced"] = timestamp
         
-        # Save the updated data to MongoDB
-        save_data(data, email)
-    
-    return data
+        print("Performing atomic update...")
+        # Perform atomic update
+        update_result = collection.update_one(
+            query,
+            {
+                "$set": {
+                    "questions": questions,
+                    "updated_at": timestamp
+                }
+            }
+        )
+        
+        print(f"Update result - matched: {update_result.matched_count}, modified: {update_result.modified_count}")
+        
+        if update_result.modified_count == 0 and update_result.matched_count == 0:
+            print("No document was updated, attempting to insert new document")
+            try:
+                collection.insert_one({
+                    "subject": subject,
+                    "week": week,
+                    "email": email,
+                    "questions": questions,
+                    "updated_at": timestamp
+                })
+                print("New document inserted successfully")
+            except Exception as e:
+                print(f"Error inserting new document: {str(e)}")
+                raise
+            
+        # Update the in-memory data structure
+        if subject not in data:
+            data[subject] = {}
+        if week not in data[subject]:
+            data[subject][week] = []
+        while len(data[subject][week]) <= question_idx:
+            data[subject][week].append({"scores": [], "last_practiced": None})
+            
+        data[subject][week][question_idx]["scores"] = questions[question_idx]["scores"]
+        data[subject][week][question_idx]["last_practiced"] = timestamp
+        
+        print("In-memory data structure updated")
+        return data
+        
+    except Exception as e:
+        print(f"Error in MongoDB update_question_score: {str(e)}")
+        import traceback
+        print(f"Full error traceback:\n{traceback.format_exc()}")
+        raise  # Re-raise the exception to be handled by the caller
 
 
 def save_ai_feedback(data: Dict, question_item: Dict, feedback_data: Dict) -> Dict:
@@ -375,7 +553,7 @@ def update_single_question_score(data: Dict, subject: str, week: str, question_i
         subject: Subject name
         week: Week number (as string)
         question_idx: Index of the question
-        score: Score value (0-10)
+        score: Score value (1-5)
         user_answer: Optional user's answer to log
         feedback_data: Optional AI feedback data
         email: User's email (required for MongoDB update)
@@ -388,42 +566,42 @@ def update_single_question_score(data: Dict, subject: str, week: str, question_i
         data = update_question_score(data, subject, week, question_idx, score, user_answer, email)
         return data
         
-    # First update the in-memory data
-    if subject in data and week in data[subject] and question_idx < len(data[subject][week]):
-        # Get the current timestamp
-        current_time = int(time.time())
+    try:
+        collection = get_collection(QUEUE_CARDS_COLLECTION)
         
-        # Initialize scores list if it doesn't exist
-        if "scores" not in data[subject][week][question_idx]:
-            data[subject][week][question_idx]["scores"] = []
+        # First update the in-memory data
+        if subject in data and week in data[subject] and question_idx < len(data[subject][week]):
+            # Get the current timestamp
+            current_time = int(time.time())
             
-        # Create score entry
-        score_entry = {
-            "score": score,
-            "timestamp": current_time
-        }
-        
-        # Add user answer if provided
-        if user_answer is not None:
-            score_entry["user_answer"] = user_answer
-            
-        # Add AI feedback if provided
-        if feedback_data is not None:
-            score_entry["ai_feedback"] = {
-                "feedback": feedback_data.get("feedback", ""),
-                "hint": feedback_data.get("hint", "")
+            # Initialize scores list if it doesn't exist
+            if "scores" not in data[subject][week][question_idx]:
+                data[subject][week][question_idx]["scores"] = []
+                
+            # Create score entry
+            score_entry = {
+                "score": score,
+                "timestamp": current_time
             }
             
-        # Add the new score with timestamp and user answer
-        data[subject][week][question_idx]["scores"].append(score_entry)
-        
-        # Update last practiced timestamp
-        data[subject][week][question_idx]["last_practiced"] = current_time
-        
-        # Now update directly in MongoDB without rewriting the entire database
-        try:
-            collection = get_collection(QUEUE_CARDS_COLLECTION)
+            # Add user answer if provided
+            if user_answer is not None:
+                score_entry["user_answer"] = user_answer
+                
+            # Add AI feedback if provided
+            if feedback_data is not None:
+                score_entry["ai_feedback"] = {
+                    "feedback": feedback_data.get("feedback", ""),
+                    "hint": feedback_data.get("hint", "")
+                }
+                
+            # Add the new score with timestamp and user answer
+            data[subject][week][question_idx]["scores"].append(score_entry)
             
+            # Update last practiced timestamp
+            data[subject][week][question_idx]["last_practiced"] = current_time
+            
+            # Now update directly in MongoDB
             # Find the document containing this question
             query = {
                 "email": email,
@@ -448,7 +626,7 @@ def update_single_question_score(data: Dict, subject: str, week: str, question_i
                     last_practiced_path = f"questions.{question_index_in_batch}.last_practiced"
                     
                     # Update the document
-                    collection.update_one(
+                    result = collection.update_one(
                         {
                             "email": email,
                             "subject": subject,
@@ -464,15 +642,36 @@ def update_single_question_score(data: Dict, subject: str, week: str, question_i
                             }
                         }
                     )
-                    print(f"Updated single question score for {subject}, week {week}, question {question_idx}")
+                    
+                    if result.modified_count == 0:
+                        print(f"Warning: No document was updated for {subject}, week {week}, question {question_idx}")
+                        # Fall back to full save if direct update fails
+                        save_data(data, email)
+                    else:
+                        print(f"Successfully updated single question score for {subject}, week {week}, question {question_idx}")
                 else:
                     print(f"Question index {question_idx} is out of bounds for batches")
+                    # Fall back to full save if batch index is out of bounds
+                    save_data(data, email)
             else:
                 print(f"Document not found for {subject}, week {week}")
+                # Create new document if it doesn't exist
+                new_doc = {
+                    "email": email,
+                    "subject": subject,
+                    "week": week,
+                    "questions": [{"scores": [], "last_practiced": None}] * (question_idx + 1)
+                }
+                new_doc["questions"][question_idx] = {
+                    "scores": data[subject][week][question_idx]["scores"],
+                    "last_practiced": current_time
+                }
+                collection.insert_one(new_doc)
+                print(f"Created new document for {subject}, week {week}")
                 
-        except Exception as e:
-            print(f"Error updating single question: {str(e)}")
-            # Fall back to full save if direct update fails
-            save_data(data, email)
+    except Exception as e:
+        print(f"Error updating single question: {str(e)}")
+        # Fall back to full save if direct update fails
+        save_data(data, email)
     
     return data

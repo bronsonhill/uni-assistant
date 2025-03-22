@@ -1,93 +1,111 @@
 """
-MongoDB integration package for Study Legend.
-Provides data access layers for the application.
+MongoDB Integration Package
+
+This package provides integration with MongoDB for the university assistant app.
+It handles all database operations including connection, data storage, and retrieval.
+
+The package includes the following modules:
+- connection: Handles connection to the MongoDB database
+- queue_cards: Manages storage and retrieval of queue cards data
+- users: Manages user data operations
+- assessments: Manages assessment data
+- chat_history: Manages chat history data
+
+Usage:
+    from mongodb import get_mongodb_client, save_data, load_data
 """
 
-# Re-export key functions from submodules
-from .connection import (
+# Re-export connection functions
+from mongodb.connection import (
     get_mongodb_client,
     get_database,
     get_collection
 )
 
-from .queue_cards import (
-    load_data,
+# Re-export queue_cards functions
+from mongodb.queue_cards import (
     save_data,
+    load_data,
     add_question,
-    delete_question,
     update_question,
+    delete_question,
     update_question_score,
-    calculate_weighted_score
+    calculate_weighted_score,
+    add_file_metadata,
+    get_file_metadata
 )
 
-from .users import (
-    load_users,
-    save_users,
+# Import migration function from init_db
+from mongodb.init_db import migrate_json_to_mongodb
+
+# Re-export users functions
+from mongodb.users import (
     get_user,
     add_user,
     delete_user,
-    update_user_field
+    update_user_field,
+    load_users,
+    save_users
 )
 
-from .assessments import (
+# Re-export assessments functions
+from mongodb.assessments import (
     load_assessments,
     save_assessments,
+    get_user_assessments,
     add_assessment,
     update_assessment,
     delete_assessment
 )
 
-from .chat_history import (
+# Re-export chat_history functions
+from mongodb.chat_history import (
     save_chat_session,
     get_chat_sessions,
     get_chat_session,
-    delete_chat_session,
     rename_chat_session,
-    CHAT_TYPE_TUTOR,
-    CHAT_TYPE_PRACTICE
+    delete_chat_session
 )
 
-from .init_db import migrate_json_to_mongodb
-
+# All exported functions and constants
 __all__ = [
-    # Connection
+    # Connection functions
     'get_mongodb_client',
     'get_database',
     'get_collection',
     
-    # Queue cards
-    'load_data',
+    # Queue cards functions
     'save_data',
+    'load_data',
     'add_question',
-    'delete_question',
     'update_question',
+    'delete_question',
     'update_question_score',
     'calculate_weighted_score',
+    'add_file_metadata',
+    'get_file_metadata',
+    'migrate_json_to_mongodb',
     
-    # Users
-    'load_users',
-    'save_users',
+    # Users functions
     'get_user',
     'add_user',
     'delete_user',
     'update_user_field',
+    'load_users',
+    'save_users',
     
-    # Assessments
+    # Assessment functions
     'load_assessments',
     'save_assessments',
+    'get_user_assessments',
     'add_assessment',
     'update_assessment',
     'delete_assessment',
     
-    # Chat History
+    # Chat history functions
     'save_chat_session',
     'get_chat_sessions',
-    'get_chat_session', 
-    'delete_chat_session',
+    'get_chat_session',
     'rename_chat_session',
-    'CHAT_TYPE_TUTOR',
-    'CHAT_TYPE_PRACTICE',
-    
-    # Initialization
-    'migrate_json_to_mongodb'
+    'delete_chat_session'
 ]

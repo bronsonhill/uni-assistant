@@ -25,11 +25,14 @@ def render_questions_with_selection(
     
     # Display each question with a checkbox
     for i, q in enumerate(questions):
-        question = q.get("question", "")
-        answer = q.get("answer", "")
-        
-        # Create unique key for each checkbox
+        # Create unique key for each checkbox and text areas
         checkbox_key = f"q_{i}"
+        question_key = f"question_{i}"
+        answer_key = f"answer_{i}"
+        
+        # Get current values, using edited values if they exist
+        current_question = st.session_state.get(question_key, q.get("question", ""))
+        current_answer = st.session_state.get(answer_key, q.get("answer", ""))
         
         # Check if this question is already selected
         is_selected = checkbox_key in selected_questions
@@ -38,25 +41,54 @@ def render_questions_with_selection(
             col1, col2 = st.columns([0.9, 0.1])
             
             with col1:
-                st.markdown(f"**Q{i+1}: {question}**")
+                # Make question editable
+                edited_question = st.text_area(
+                    f"Q{i+1}:",
+                    value=current_question,
+                    key=question_key,
+                    height=100
+                )
+                
+                # Create columns for answer editing and preview
+                answer_col1, answer_col2 = st.columns(2)
+                
+                with answer_col1:
+                    # Make answer editable in expander
+                    with st.expander("Edit answer"):
+                        edited_answer = st.text_area(
+                            "Answer:",
+                            value=current_answer,
+                            key=answer_key,
+                            height=150
+                        )
+                
+                with answer_col2:
+                    # Show preview of answer in a separate expander
+                    with st.expander("Preview answer"):
+                        st.write(edited_answer if edited_answer else "No answer provided.")
             
             with col2:
-                # Use the checkbox to select/deselect the question
-                selected = st.checkbox("", value=is_selected, key=checkbox_key)
+                # Use the checkbox to select/deselect the question with a label
+                selected = st.checkbox("Select", value=True, key=checkbox_key)
                 
-                # Update the selected questions dictionary
-                if selected and checkbox_key not in selected_questions:
-                    selected_questions[checkbox_key] = q
-                elif not selected and checkbox_key in selected_questions:
+                # Update the selected questions dictionary with edited content
+                if selected:
+                    # Create a copy of the question with edited content
+                    edited_q = q.copy()
+                    edited_q["question"] = edited_question
+                    edited_q["answer"] = edited_answer
+                    
+                    if checkbox_key not in selected_questions:
+                        selected_questions[checkbox_key] = edited_q
+                    else:
+                        # Update existing selected question with edited content
+                        selected_questions[checkbox_key] = edited_q
+                elif checkbox_key in selected_questions:
                     del selected_questions[checkbox_key]
                 
                 # Call the callback if provided
                 if on_select_callback and selected != is_selected:
                     on_select_callback(checkbox_key, selected, q)
-            
-            # Show expected answer in an expander
-            with st.expander("View expected answer"):
-                st.write(answer if answer else "No answer provided.")
 
 def create_subject_week_selector(
     data: Dict, 

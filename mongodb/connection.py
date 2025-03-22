@@ -46,3 +46,30 @@ def get_collection(collection_name: str, db_name: str = "study_legend") -> Colle
     """Get a MongoDB collection instance."""
     db = get_database(db_name)
     return db[collection_name]
+
+def create_indexes():
+    """
+    Create indexes for MongoDB collections to optimize query performance.
+    This function should be called once during application initialization.
+    """
+    # Get database and collections
+    db = get_database()
+    queue_cards = db["queue_cards"]
+    users = db["users"]
+    assessments = db["assessments"]
+    chat_history = db["chat_sessions"]
+    
+    # Create index for queue_cards collection
+    queue_cards.create_index("user_email")
+    
+    # Create index for users collection
+    users.create_index("email", unique=True)
+    
+    # Create index for assessments collection
+    assessments.create_index("user_email")
+    
+    # Create index for chat_history collection
+    chat_history.create_index("user_email")
+    chat_history.create_index("timestamp")
+    
+    print("MongoDB indexes created successfully.")

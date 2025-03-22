@@ -2,15 +2,19 @@
 Refactored UI components for add_ai module.
 
 This module provides UI elements and display functions for the AI Question Generator feature,
-using the shared modules for code reuse.
+using the shared modules for code reuse with vector stores.
 """
 import streamlit as st
 import time
+import os
+import json
 from typing import Dict, List, Any, Optional
+from openai import OpenAI
 
 # Import from shared modules
 from features.content.shared.vector_store_manager import display_enhanced_kb_management
 from features.content.shared.vector_store_utils import (
+    create_vector_store,
     generate_questions_from_vector_store,
     add_selected_questions_to_data
 )
@@ -20,7 +24,23 @@ from features.content.shared.ui_components import (
 )
 
 # Import core functionality still needed from add_ai_core
-from features.content.add_ai.add_ai_core import process_uploaded_file, generate_questions_without_upload
+from features.content.add_ai.add_ai_core import init_rag_manager
+
+def setup_openai_client():
+    """Initialize and return the OpenAI client"""
+    api_key = None
+    try:
+        # First check Streamlit secrets
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except (KeyError, AttributeError):
+        # Fallback to environment variable
+        api_key = os.getenv("OPENAI_API_KEY")
+        
+    if not api_key:
+        st.error("OpenAI API key not found. Please set it in your environment variables or contact support.")
+        return None
+        
+    return OpenAI(api_key=api_key)
 
 def init_session_state():
     """Initialize session state variables for the AI question generator"""
@@ -39,6 +59,396 @@ def init_session_state():
         st.session_state.api_error = None
     if "file_uploaded" not in st.session_state:
         st.session_state.file_uploaded = False
+
+def extract_vector_store_id(vector_store_data):
+    """
+    Extract the vector store ID from the data structure
+    
+    Args:
+        vector_store_data: The vector store data (can be string, dict, etc.)
+        
+    Returns:
+        The vector store ID as a string
+    """
+    if isinstance(vector_store_data, dict) and "id" in vector_store_data:
+        return vector_store_data["id"]
+    else:
+        return str(vector_store_data)
+
+def get_vector_store_id_for_subject_week(subject, week):
+    """
+    Get the vector store ID for a subject and week
+    
+    Args:
+        subject: The subject
+        week: The week number
+        
+    Returns:
+        The vector store ID or None if not found
+    """
+    try:
+        if "data" not in st.session_state:
+            return None
+            
+        if subject not in st.session_state.data:
+            return None
+            
+        if "vector_store_metadata" not in st.session_state.data[subject]:
+            return None
+            
+        week_str = str(week)
+        if week_str not in st.session_state.data[subject]["vector_store_metadata"]:
+            return None
+            
+        # Extract the vector store ID
+        vector_store_data = st.session_state.data[subject]["vector_store_metadata"][week_str]
+        return extract_vector_store_id(vector_store_data)
+        
+    except Exception as e:
+        print(f"Error getting vector store ID: {e}")
+        return None
+
+def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: str, num_questions: int = 5):
+    """
+    Process the uploaded file and generate questions using both vector store and direct file content
+    
+    Args:
+        uploaded_file: The streamlit uploaded file object
+        subject: The subject for the questions
+        week: The week number for the questions
+        user_email: The user's email address
+        num_questions: Number of questions to generate (default: 5)
+    
+    Returns:
+        List of generated questions
+    """
+    st.session_state.generation_in_progress = True
+    st.session_state.api_error = None
+    st.session_state.num_questions = num_questions
+    
+    try:
+        # Handle uploaded file - support multiple files or single file
+        if isinstance(uploaded_file, list):
+            # Multiple files uploaded
+            file_to_process = uploaded_file[0]  # Process the first file for now
+        else:
+            # Single file uploaded
+            file_to_process = uploaded_file
+            
+        # Read file content
+        file_bytes = file_to_process.getvalue()
+        file_name = file_to_process.name
+        file_type = file_name.split('.')[-1].lower()
+        
+        # Validate file type
+        if file_type not in ["pdf", "txt"]:
+            st.session_state.api_error = "Only PDF and TXT files are supported at this time."
+            st.session_state.generation_in_progress = False
+            return []
+        
+        # Initialize the RAG manager
+        if not init_rag_manager(user_email):
+            st.session_state.api_error = "Could not initialize RAG manager"
+            st.session_state.generation_in_progress = False
+            return []
+        
+        # Create a vector store for the subject and week
+        vector_store_id = create_vector_store(subject, week, user_email, file_bytes, file_name)
+        
+        if not vector_store_id:
+            st.session_state.api_error = "Could not create vector store for the uploaded file. Check the logs for details."
+            st.session_state.generation_in_progress = False
+            return []
+            
+        # Initialize OpenAI client
+        client = setup_openai_client()
+        if not client:
+            st.session_state.api_error = "Could not initialize OpenAI client."
+            st.session_state.generation_in_progress = False
+            return []
+        
+        # First, upload the file to OpenAI to get direct access
+        try:
+            file_upload = client.files.create(
+                file=file_bytes,
+                purpose="user_data"
+            )
+            file_id = file_upload.id
+            
+            # Get the file content
+            file_content = client.files.content(file_id).text
+            
+            # Define the question generation tool and file_search tool
+            tools = [
+                {
+                    "type": "function",
+                    "name": "generate_questions",
+                    "description": "Generate study questions based on retrieved content",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "questions": {
+                                "type": "array",
+                                "description": "List of generated questions with their answers",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "question": {
+                                            "type": "string",
+                                            "description": "The question text"
+                                        },
+                                        "answer": {
+                                            "type": "string",
+                                            "description": "The answer to the question"
+                                        },
+                                        "explanation": {
+                                            "type": "string",
+                                            "description": "Explanation of why the answer is correct"
+                                        }
+                                    },
+                                    "required": ["question", "answer"]
+                                }
+                            }
+                        },
+                        "required": ["questions"]
+                    }
+                },
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [vector_store_id],
+                    "max_num_results": 10
+                }
+            ]
+            
+            # Add the user message with both direct content and vector search context
+            context = f"""Generate {num_questions} study questions for the subject '{subject}', Week {week}.
+
+Here is the direct content from the file:
+{file_content}
+
+Additionally, you can search the vector store for more context using the file_search tool.
+The questions should test understanding of key concepts, terminology, and applications from the document.
+Include a mix of factual recall, understanding, and application questions.
+Make sure to use both the direct content and vector search results to generate comprehensive questions."""
+            
+            # Call the OpenAI API with function definitions and file_search tool
+            response = client.responses.create(
+                model="gpt-4o",
+                instructions=f"You are an expert question generator for educational content in {subject}. Generate {num_questions} high-quality study questions with answers based on both the direct file content and vector search results.",
+                input=context,
+                tools=tools,
+                tool_choice={"type": "function", "name": "generate_questions"}
+            )
+            
+            # Extract questions from the function call
+            questions = []
+            if hasattr(response, 'output') and response.output:
+                for item in response.output:
+                    if item.type == "function_call":
+                        try:
+                            args = json.loads(item.arguments)
+                            questions = args.get("questions", [])
+                        except Exception as e:
+                            print(f"Error parsing function call: {e}")
+            
+            # Clean up the uploaded file
+            client.files.delete(file_id)
+            
+            st.session_state.generation_in_progress = False
+            return questions
+            
+        except Exception as e:
+            print(f"Error processing file content: {e}")
+            # Fall back to vector store only if direct content processing fails
+            return st.session_state.rag_manager.generate_questions_with_rag(
+                subject=subject,
+                week=str(week),
+                num_questions=num_questions
+            )
+    
+    except Exception as e:
+        print(f"Error processing file: {e}")
+        st.session_state.api_error = f"An error occurred: {str(e)}"
+        st.session_state.generation_in_progress = False
+        return []
+
+def generate_questions_without_upload(subject: str, week: int, user_email: str, num_questions: int = 5, selected_files: List[str] = None):
+    """
+    Generate questions without uploading a file (uses existing vector store) using OpenAI responses API
+    
+    Args:
+        subject: The subject for the questions
+        week: The week number for the questions
+        user_email: The user's email address
+        num_questions: Number of questions to generate (default: 5)
+        selected_files: List of file IDs to use for context (if None, uses all files)
+        
+    Returns:
+        List of generated questions
+    """
+    st.session_state.generation_in_progress = True
+    st.session_state.api_error = None
+    st.session_state.num_questions = num_questions
+    
+    try:
+        # Initialize the RAG manager
+        if not init_rag_manager(user_email):
+            st.session_state.api_error = "Could not initialize RAG manager"
+            st.session_state.generation_in_progress = False
+            return []
+            
+        # Get vector store ID for this subject and week
+        vector_store_id = get_vector_store_id_for_subject_week(subject, week)
+        
+        if not vector_store_id:
+            st.session_state.api_error = "No vector store found for this subject and week."
+            st.session_state.generation_in_progress = False
+            return []
+        
+        # Initialize OpenAI client
+        client = setup_openai_client()
+        if not client:
+            st.session_state.api_error = "Could not initialize OpenAI client."
+            st.session_state.generation_in_progress = False
+            return []
+        
+        # Get list of files in the vector store
+        files = st.session_state.rag_manager.list_vector_store_files(vector_store_id)
+        if not files:
+            st.session_state.api_error = "No files found in the vector store."
+            st.session_state.generation_in_progress = False
+            return []
+            
+        # Filter files based on selection if specified
+        if selected_files:
+            files = [f for f in files if f["id"] in selected_files]
+            if not files:
+                st.session_state.api_error = "No selected files found in the vector store."
+                st.session_state.generation_in_progress = False
+                return []
+        
+        # Get content from selected files
+        file_contents = []
+        for file in files:
+            try:
+                # Try to get content directly from vector store file
+                try:
+                    print(f"Getting content for file {file['filename']} from vector store")
+                    response = client.vector_stores.files.content(
+                        vector_store_id=vector_store_id,
+                        file_id=file["id"]
+                    )
+                    print(f"Response: {response}")
+                    
+                    # The response has a data array with FileContentResponse objects
+                    if hasattr(response, 'data') and isinstance(response.data, list):
+                        for content_response in response.data:
+                            if hasattr(content_response, 'text'):
+                                file_contents.append({
+                                    "filename": file["filename"],
+                                    "content": content_response.text
+                                })
+                                break  # We only need the first content block
+                    
+                except Exception as ve:
+                    print(f"Error getting content from vector store for file {file['filename']}: {ve}")
+                    # If vector store content retrieval fails, try direct file content
+                    if file["id"].startswith("file-"):
+                        print(f"Falling back to direct file content for {file['filename']}")
+                        file_content = client.files.content(file["id"]).text
+                        file_contents.append({
+                            "filename": file["filename"],
+                            "content": file_content
+                        })
+            except Exception as e:
+                print(f"Error getting content for file {file['filename']}: {e}")
+                continue
+        
+        if not file_contents:
+            st.session_state.api_error = "Could not retrieve content from any files. Please try uploading the files again."
+            st.session_state.generation_in_progress = False
+            return []
+        
+        # Define the question generation tool and file_search tool
+        tools = [
+            {
+                "type": "function",
+                "name": "generate_questions",
+                "description": "Generate study questions based on retrieved content",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "questions": {
+                            "type": "array",
+                            "description": "List of generated questions with their answers",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "question": {
+                                        "type": "string",
+                                        "description": "The question text"
+                                    },
+                                    "answer": {
+                                        "type": "string",
+                                        "description": "The answer to the question"
+                                    },
+                                    "explanation": {
+                                        "type": "string",
+                                        "description": "Explanation of why the answer is correct"
+                                    }
+                                },
+                                "required": ["question", "answer"]
+                            }
+                        }
+                    },
+                    "required": ["questions"]
+                }
+            },
+            {
+                "type": "file_search",
+                "vector_store_ids": [vector_store_id],
+                "max_num_results": 10
+            }
+        ]
+        
+        # Construct context from selected files
+        context = f"Generate {num_questions} additional study questions for the subject '{subject}', Week {week}.\n\n"
+        context += "Here is the content from the selected files:\n\n"
+        
+        for file_content in file_contents:
+            context += f"From {file_content['filename']}:\n{file_content['content']}\n\n"
+        
+        context += "The questions should be different from previously generated ones and focus on deeper understanding. "
+        context += "Include questions that require critical thinking and application of concepts from the documents."
+        
+        # Call the OpenAI API with function definitions and file_search tool
+        response = client.responses.create(
+            model="gpt-4o",
+            instructions=f"You are an expert question generator for educational content in {subject}. Generate {num_questions} high-quality study questions with answers based on the materials for Week {week}.",
+            input=context,
+            tools=tools,
+            tool_choice={"type": "function", "name": "generate_questions"}
+        )
+        
+        # Extract questions from the function call
+        questions = []
+        if hasattr(response, 'output') and response.output:
+            for item in response.output:
+                if item.type == "function_call":
+                    try:
+                        args = json.loads(item.arguments)
+                        questions = args.get("questions", [])
+                    except Exception as e:
+                        print(f"Error parsing function call: {e}")
+        
+        st.session_state.generation_in_progress = False
+        return questions
+    
+    except Exception as e:
+        print(f"Error generating questions: {e}")
+        st.session_state.api_error = f"An error occurred: {str(e)}"
+        st.session_state.generation_in_progress = False
+        return []
 
 def on_generate_questions(subject: str, week: int, uploaded_file):
     """Callback for when the generate button is clicked"""
@@ -64,6 +474,12 @@ def on_generate_questions(subject: str, week: int, uploaded_file):
 
 def display_file_upload(is_subscribed: bool):
     """Display the file upload interface for generating questions"""
+    # Initialize data if user is logged in
+    if "email" in st.session_state:
+        if "data" not in st.session_state:
+            from Home import load_data
+            st.session_state.data = load_data(st.session_state.email)
+    
     # Get the list of existing subjects from the user's data
     subject_options = []
     if "data" in st.session_state and st.session_state.data:
@@ -127,7 +543,7 @@ def display_file_upload(is_subscribed: bool):
     num_questions = st.slider(
         "Number of questions to generate",
         min_value=1,
-        max_value=20,
+        max_value=10,
         value=5,
         step=1,
         key="num_questions_slider"
@@ -150,7 +566,7 @@ def display_file_upload(is_subscribed: bool):
     file_uploaded = uploaded_file is not None
     st.session_state.file_uploaded = file_uploaded
     
-    # Check if there's an existing knowledge base for this subject/week
+    # Check if there's an existing vector store for this subject/week
     has_kb = False
     if subject and subject in st.session_state.data:
         if "vector_store_metadata" in st.session_state.data[subject]:
@@ -174,8 +590,8 @@ def display_file_upload(is_subscribed: bool):
                 on_generate_questions(subject, week, uploaded_file)
     
     with col2:
-        # Generate from Previous Uploads button - enabled only if a knowledge base exists
-        if st.button("Generate from Previous Uploads", 
+        # Generate from Previous Uploads button - enabled only if a vector store exists
+        if st.button("Select from Knowledge Base", 
                     key="generate_from_previous_btn", 
                     use_container_width=True,
                     disabled=not has_kb,
@@ -183,24 +599,85 @@ def display_file_upload(is_subscribed: bool):
             if not subject:
                 st.error("Please enter a subject.")
             elif has_kb:
-                # Generate questions without uploading a new file
-                with st.spinner("Generating additional questions..."):
-                    questions = generate_questions_without_upload(
-                        subject, 
-                        week, 
-                        st.session_state.email,
-                        num_questions=st.session_state.num_questions
-                    )
-                    st.session_state.generated_questions = questions
-                    st.session_state.selected_questions = {}
+                # Initialize show_kb_selection in session state if not exists
+                if "show_kb_selection" not in st.session_state:
+                    st.session_state.show_kb_selection = True
+                else:
+                    st.session_state.show_kb_selection = not st.session_state.show_kb_selection
+    
+    # Display knowledge base selection UI if enabled
+    if has_kb and st.session_state.get("show_kb_selection", False):
+        # Get vector store ID
+        vector_store_id = get_vector_store_id_for_subject_week(subject, week)
+        if vector_store_id:
+            # Get list of files in the vector store
+            files = st.session_state.rag_manager.list_vector_store_files(vector_store_id)
+            if files:
+                # Initialize selected files in session state if not exists
+                if "selected_file_ids" not in st.session_state:
+                    st.session_state.selected_file_ids = []
+                
+                # Clean up selected file IDs - remove any that no longer exist
+                available_file_ids = [f["id"] for f in files]
+                st.session_state.selected_file_ids = [
+                    file_id for file_id in st.session_state.selected_file_ids 
+                    if file_id in available_file_ids
+                ]
+                
+                # Create a container for file selection
+                with st.container():
+                    st.markdown("### Select Files for Context")
                     
-                    # Show success or error message
-                    if st.session_state.api_error:
-                        st.error(st.session_state.api_error)
-                    elif questions:
-                        st.success(f"Generated {len(questions)} additional questions!")
-                    else:
-                        st.warning("No additional questions could be generated.")
+                    # Create file options dictionary
+                    file_options = {f["id"]: f["filename"] for f in files}
+                    
+                    # Create a row for Select All button and file count
+                    col1, col2 = st.columns([1, 4])
+                    with col1:
+                        if st.button("Select All", key="select_all_files"):
+                            st.session_state.selected_file_ids = [f["id"] for f in files]
+                    
+                    with col2:
+                        if st.session_state.selected_file_ids:
+                            st.info(f"Selected {len(st.session_state.selected_file_ids)} file(s)")
+                    
+                    # Create multiselect with persistent state
+                    selected_file_ids = st.multiselect(
+                        "Choose files to use for context",
+                        options=list(file_options.keys()),
+                        default=st.session_state.selected_file_ids,
+                        format_func=lambda x: file_options[x],
+                        key="file_selection"
+                    )
+                    
+                    # Update session state with current selection
+                    st.session_state.selected_file_ids = selected_file_ids
+                    
+                    # Generate button for selected files
+                    if st.button("Generate Questions", 
+                               key="generate_from_selected",
+                               use_container_width=True,
+                               type="primary"):
+                        with st.spinner("Generating additional questions..."):
+                            questions = generate_questions_without_upload(
+                                subject, 
+                                week, 
+                                st.session_state.email,
+                                num_questions=st.session_state.num_questions,
+                                selected_files=selected_file_ids
+                            )
+                            st.session_state.generated_questions = questions
+                            st.session_state.selected_questions = {}
+                            
+                            # Show success or error message
+                            if st.session_state.api_error:
+                                st.error(st.session_state.api_error)
+                            elif questions:
+                                st.success(f"Generated {len(questions)} additional questions!")
+                            else:
+                                st.warning("No additional questions could be generated.")
+                    elif not selected_file_ids:
+                        st.warning("Please select at least one file to use for context.")
 
     # Button state explanation
     if not file_uploaded and not has_kb:

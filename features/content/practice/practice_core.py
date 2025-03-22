@@ -184,31 +184,78 @@ def cached_evaluate_answer(question, user_answer, expected_answer):
     return evaluate_answer(question, user_answer, expected_answer, stream_handler=None)
 
 def save_score_with_answer(data: Dict, question_item: Dict, score: int, user_answer: str, user_email: str) -> Dict:
-    """Save user's score and answer with improved error handling"""
-    try:
-        # Try with user_answer parameter (new format)
-        data = update_question_score(
-            data,
-            question_item["subject"],
-            question_item["week"],
-            question_item["question_idx"],
-            score,
-            user_answer,  # Include user's answer
-            user_email  # Include user's email
-        )
-    except TypeError:
-        # Fall back to old format without user_answer
-        data = update_question_score(
-            data,
-            question_item["subject"],
-            question_item["week"],
-            question_item["question_idx"],
-            score,
-            None,  # No user answer
-            user_email  # Include user's email
-        )
+    """Save user's score and answer with improved error handling and data validation"""
+    print(f"\n=== save_score_with_answer called ===")
+    print(f"Question item: {question_item}")
+    print(f"Score: {score}")
+    print(f"User email: {user_email}")
     
-    return data
+    try:
+        # Validate inputs
+        if not isinstance(score, int) or score < 1 or score > 5:
+            raise ValueError(f"Invalid score value: {score}. Score must be between 1 and 5.")
+            
+        if not question_item.get("subject") or not question_item.get("week") or "question_idx" not in question_item:
+            raise ValueError("Invalid question item: missing required fields")
+            
+        # Ensure the data structure exists
+        subject = question_item["subject"]
+        week = str(question_item["week"])  # Ensure week is string
+        question_idx = question_item["question_idx"]
+        
+        print(f"Processing score for subject: {subject}, week: {week}, question_idx: {question_idx}")
+        
+        if subject not in data:
+            print(f"Creating new subject: {subject}")
+            data[subject] = {}
+        if week not in data[subject]:
+            print(f"Creating new week: {week}")
+            data[subject][week] = []
+            
+        # Ensure the question exists
+        if question_idx >= len(data[subject][week]):
+            raise ValueError(f"Question index {question_idx} out of range for subject {subject}, week {week}")
+            
+        # Initialize scores list if it doesn't exist
+        if "scores" not in data[subject][week][question_idx]:
+            print("Initializing scores list")
+            data[subject][week][question_idx]["scores"] = []
+            
+        # Create the score entry with timestamp
+        score_entry = {
+            "score": score,
+            "timestamp": int(time.time()),
+            "user_answer": user_answer
+        }
+        
+        print(f"Adding score entry: {score_entry}")
+        
+        # Add the score entry
+        data[subject][week][question_idx]["scores"].append(score_entry)
+        
+        # Update last_practiced timestamp
+        data[subject][week][question_idx]["last_practiced"] = int(time.time())
+        
+        print("Calling update_question_score...")
+        # Update the data in MongoDB
+        data = update_question_score(
+            data,
+            subject,
+            week,
+            question_idx,
+            score,
+            user_answer,
+            user_email
+        )
+        print("update_question_score completed")
+        
+        return data
+        
+    except Exception as e:
+        print(f"Error in save_score_with_answer: {str(e)}")
+        import traceback
+        print(f"Full error traceback:\n{traceback.format_exc()}")
+        raise  # Re-raise the exception to be handled by the caller
 
 def save_ai_feedback_to_data(data: Dict, question_item: Dict, feedback_data: Dict) -> Dict:
     """Save AI feedback to the most recent score entry"""
