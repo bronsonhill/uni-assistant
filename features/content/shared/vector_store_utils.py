@@ -45,6 +45,8 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
             file_name=file_name,
             email=user_email
         )
+
+        print(f"create_vector_store result: {result}")
         
         # The result is a dict containing 'vector_store' and 'file_batch'
         if result and 'vector_store' in result and 'id' in result['vector_store']:
