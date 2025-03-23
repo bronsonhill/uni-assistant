@@ -32,32 +32,23 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
         print("Could not initialize RAG manager")
         return None
     
-    # Check if we already have a vector store for this subject and week
-    vector_store_id = None
-    
-    if (subject in st.session_state.data and 
-        "vector_store_metadata" in st.session_state.data[subject] and
-        str(week) in st.session_state.data[subject]["vector_store_metadata"]):
-        
-        # Get the existing vector store ID
-        existing_id = st.session_state.data[subject]["vector_store_metadata"][str(week)]
-        
-        # Extract the vector store ID
-        vector_store_id = extract_vector_store_id(existing_id)
-        if vector_store_id != existing_id:
-            print(f"Extracted existing vector store ID: {vector_store_id} (from {type(existing_id).__name__})")
-    
     try:
-        # If we don't have a vector store, create one
-        if not vector_store_id:
-            # Create a new vector store
-            vector_store_id = st.session_state.rag_manager.get_or_create_vector_store(
-                subject=subject,
-                week=str(week),
-                email=user_email
-            )["id"]
-            
-            # Save the vector store ID in the data
+        # File type from the file name
+        file_type = file_name.split('.')[-1].lower()
+        
+        # Create or update vector store using the correct method
+        result = st.session_state.rag_manager.create_or_update_vector_store(
+            subject=subject,
+            week=str(week),
+            file_bytes=file_bytes,
+            file_type=file_type,
+            file_name=file_name,
+            email=user_email
+        )
+        
+        # Save the result to session state data
+        if result and "id" in result:
+            # Update the data in session state
             if subject not in st.session_state.data:
                 st.session_state.data[subject] = {}
             
@@ -65,21 +56,16 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
                 st.session_state.data[subject]["vector_store_metadata"] = {}
             
             st.session_state.data[subject]["vector_store_metadata"][str(week)] = {
-                "id": vector_store_id,
-                "name": f"{subject}_Week_{week}"
+                "id": result["id"],
+                "name": result.get("name", f"{subject}_Week_{week}")
             }
             
             # Save the updated data
             save_data(st.session_state.data, user_email)
-        
-        # Add the file to the vector store
-        st.session_state.rag_manager.add_file_to_vector_store(
-            vector_store_id=vector_store_id,
-            file_bytes=file_bytes,
-            file_name=file_name
-        )
-        
-        return vector_store_id
+            
+            return result["id"]
+            
+        return None
     except Exception as e:
         print(f"Error creating vector store: {e}")
         return None
@@ -158,10 +144,10 @@ def generate_questions_from_vector_store(vector_store_id: str, subject: str, wee
             existing_questions = st.session_state.data[subject][str(week)]
         
         # Generate questions from the vector store
-        new_questions = st.session_state.rag_manager.generate_questions_from_vector_store(
+        new_questions = st.session_state.rag_manager.generate_questions_with_rag(
             subject=subject,
-            week=week,
-            vector_store_id=vector_store_id,
+            week=str(week),
+            num_questions=5,
             existing_questions=existing_questions
         )
         
