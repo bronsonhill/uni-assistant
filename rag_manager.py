@@ -901,7 +901,7 @@ IMPORTANT: Avoid duplicating these existing questions:
         try:
             # Send request to OpenAI API
             response = self.client.chat.completions.create(
-                model="gpt-4-turbo",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
