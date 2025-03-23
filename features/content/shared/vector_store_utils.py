@@ -50,9 +50,11 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
         # If we don't have a vector store, create one
         if not vector_store_id:
             # Create a new vector store
-            vector_store_id = st.session_state.rag_manager.create_vector_store(
-                name=f"{subject}_Week_{week}"
-            )
+            vector_store_id = st.session_state.rag_manager.get_or_create_vector_store(
+                subject=subject,
+                week=str(week),
+                email=user_email
+            )["id"]
             
             # Save the vector store ID in the data
             if subject not in st.session_state.data:
