@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional
 from openai import OpenAI
 
 # Import from shared modules
-from features.content.shared.vector_store_manager import display_enhanced_kb_management
+from features.content.shared.vector_store_manager import display_enhanced_kb_management, init_rag_manager
 from features.content.shared.vector_store_utils import (
     create_vector_store,
     generate_questions_from_vector_store,
@@ -22,9 +22,6 @@ from features.content.shared.ui_components import (
     render_questions_with_selection,
     display_file_upload_interface
 )
-
-# Import core functionality still needed from add_ai_core
-from features.content.add_ai.add_ai_core import init_rag_manager
 
 def setup_openai_client():
     """Initialize and return the OpenAI client"""
