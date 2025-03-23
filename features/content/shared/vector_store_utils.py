@@ -10,7 +10,8 @@ from typing import Dict, List, Any, Optional
 from Home import load_data, save_data
 
 # Import shared functions
-from features.content.shared.vector_store_manager import extract_vector_store_id, init_rag_manager
+from features.content.shared.vector_store_common import extract_vector_store_id
+from features.content.shared.vector_store_manager import init_rag_manager
 
 def create_vector_store(subject: str, week: int, user_email: str, file_bytes: bytes, file_name: str) -> Optional[str]:
     """
