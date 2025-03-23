@@ -36,7 +36,7 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
         # File type from the file name
         file_type = file_name.split('.')[-1].lower()
         
-        # Create or update vector store using the correct method
+        # Create or update vector store using the RAGManager method
         result = st.session_state.rag_manager.create_or_update_vector_store(
             subject=subject,
             week=str(week),
@@ -46,8 +46,11 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
             email=user_email
         )
         
-        # Save the result to session state data
-        if result and "id" in result:
+        # The result is a dict containing 'vector_store' and 'file_batch'
+        if result and 'vector_store' in result and 'id' in result['vector_store']:
+            vector_store_id = result['vector_store']['id']
+            vector_store_name = result['vector_store'].get('name', f"{subject}_Week_{week}")
+            
             # Update the data in session state
             if subject not in st.session_state.data:
                 st.session_state.data[subject] = {}
@@ -56,15 +59,17 @@ def create_vector_store(subject: str, week: int, user_email: str, file_bytes: by
                 st.session_state.data[subject]["vector_store_metadata"] = {}
             
             st.session_state.data[subject]["vector_store_metadata"][str(week)] = {
-                "id": result["id"],
-                "name": result.get("name", f"{subject}_Week_{week}")
+                "id": vector_store_id,
+                "name": vector_store_name
             }
             
             # Save the updated data
             save_data(st.session_state.data, user_email)
             
-            return result["id"]
-            
+            return vector_store_id
+        
+        # If we get here, something is wrong with the result
+        print(f"Unexpected result format from create_or_update_vector_store: {result}")
         return None
     except Exception as e:
         print(f"Error creating vector store: {e}")
@@ -143,12 +148,16 @@ def generate_questions_from_vector_store(vector_store_id: str, subject: str, wee
             str(week) != "vector_store_metadata"):
             existing_questions = st.session_state.data[subject][str(week)]
         
+        # Get the email if available
+        user_email = st.session_state.get('email')
+        
         # Generate questions from the vector store
         new_questions = st.session_state.rag_manager.generate_questions_with_rag(
             subject=subject,
             week=str(week),
             num_questions=5,
-            existing_questions=existing_questions
+            existing_questions=existing_questions,
+            email=user_email
         )
         
         return new_questions
