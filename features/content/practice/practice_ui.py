@@ -238,8 +238,8 @@ def display_setup_screen(is_authenticated):
     # Get unique subjects and weeks
     data_subjects = sorted(list(st.session_state.data.keys()))
     
-    # Create subjects list with "All" option at the beginning
-    subjects = ["All"] + data_subjects
+    # Create subjects list (removed "All" option)
+    subjects = data_subjects
     
     # Default values
     default_subject = data_subjects[0] if data_subjects else ""
@@ -253,41 +253,31 @@ def display_setup_screen(is_authenticated):
     
     # Get available weeks for the selected subject
     available_weeks = []
-    if subject == "All":
-        # For "All" subjects, collect weeks from all subjects
-        for subj in st.session_state.data:
-            for week in st.session_state.data[subj].keys():
-                if week != "vector_store_metadata" and week.isdigit() and week not in available_weeks:
-                    available_weeks.append(week)
-        available_weeks.sort()
-    elif subject in st.session_state.data:
+    if subject in st.session_state.data:
         available_weeks = [w for w in st.session_state.data[subject].keys() 
                            if w != "vector_store_metadata" and w.isdigit()]
     
-    # Add info text about selection
-    if subject == "All":
-        st.info("Selecting 'All' will practice questions from all subjects.")
-    
     # Allow user to select weeks
     week_options = available_weeks
-    
-    # Initialize selected_weeks from session state if available
-    selected_weeks = st.session_state.get("practice_weeks", [])
-    
-    # Set display text based on whether weeks are selected
-    if not selected_weeks:  # If no weeks are selected, we'll use "All" weeks
+
+    # Initialize selected_weeks from session state BEFORE rendering the multiselect
+    selected_weeks_from_state = st.session_state.get("practice_weeks", [])
+
+    # Set display text based on whether weeks are selected IN THE STATE
+    if not selected_weeks_from_state:  # Check state value
         display_text = "Select weeks (leave empty for all)"
     else:
         display_text = "Select weeks"
-        
+
+    # Render the multiselect, using the state value as the default
     selected_weeks = st.multiselect(
         display_text,
         options=week_options,
-        default=[],
+        default=selected_weeks_from_state, # Use state value for default
         key="practice_weeks"
     )
-    
-    # Set practice week based on selection
+
+    # Set practice week based on the selection FROM THE WIDGET
     if not selected_weeks:
         st.session_state.practice_week = "All"
         # Also ensure selected_practice_weeks is empty
@@ -563,10 +553,6 @@ def display_practice_question(question_data, is_authenticated, user_email):
                     )
                     return
                     
-                if not user_answer.strip():
-                    st.warning("Please enter an answer first.")
-                    return
-                
                 st.session_state.show_answer = True
                 
                 # Generate AI feedback
@@ -809,3 +795,6 @@ def display_practice_question(question_data, is_authenticated, user_email):
                 else:
                     # Show login prompt for chat functionality
                     st.info("Sign in to rate your answers and chat with AI about this question.") 
+            else:
+                if user_email:  # Only show rating if user is logged in
+                    display_self_rating_buttons(question_data, user_answer, user_email)

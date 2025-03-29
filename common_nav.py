@@ -40,6 +40,16 @@ def render_account():
     from account import render_account_page
     render_account_page()
 
+def render_settings():
+    """Load and run the Settings page"""
+    from features.content.settings import settings_content
+    settings_content.run()
+
+def render_statistics():
+    """Load and run the Statistics page"""
+    from features.content.statistics import statistics_content
+    statistics_content.run()
+
 def setup_navigation():
     """
     Create and run navigation for Study Legend.
@@ -65,8 +75,12 @@ def setup_navigation():
     tutor = st.Page(render_tutor, title="Subject Tutor", icon="💬")
     assessments = st.Page(render_assessments, title="Assessments", icon="📅")
     
-    # Account page
+    # Account and Settings pages
     account = st.Page(render_account, title="Account", icon="👤")
+    settings = st.Page(render_settings, title="Settings", icon="⚙️")
+    
+    # Statistics page
+    statistics = st.Page(render_statistics, title="Statistics", icon="📊")
     
     # Make all features visible in the navigation, regardless of login status
     # The individual features will handle authentication requirements themselves
@@ -74,16 +88,16 @@ def setup_navigation():
         # Full access structure for subscribed users
         navigation_structure = {
             "Main Features": [home, add_ai, practice, tutor, assessments],
-            "Utilities": [manage, add_manual],
-            "Account": [account]
+            "Utilities": [manage, add_manual, statistics],
+            "Account & Settings": [account, settings]
         }
     else:
         # Structure with premium features marked separately
         navigation_structure = {
             "Main Features": [home, practice],
-            "Utilities": [manage, add_manual],
+            "Utilities": [manage, add_manual, statistics],
             "Premium Features": [add_ai, tutor, assessments],
-            "Account": [account]
+            "Account & Settings": [account, settings]
         }
     
     # Return the navigation page object - caller must call pg.run()

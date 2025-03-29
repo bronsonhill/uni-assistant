@@ -41,13 +41,21 @@ def get_questions_for_subject_week(data: Dict, subject: str, week: str) -> List[
         return data[subject][week]
     return []
 
-def get_metrics_for_questions(questions: List[Dict]) -> Dict:
-    """Calculate metrics for a set of questions"""
+def get_metrics_for_questions(questions: List[Dict], decay_factor: Optional[float] = None, forgetting_decay_factor: Optional[float] = None) -> Dict:
+    """Calculate metrics for a set of questions using provided factors."""
     # Collect all weighted scores for questions
     all_scores = []
     for q in questions:
         scores = q.get("scores", [])
-        weighted_score = calculate_weighted_score(scores)
+        last_practiced = q.get("last_practiced")
+        
+        # Pass factors to the calculation. Use None if not provided (function defaults will apply)
+        weighted_score = calculate_weighted_score(
+            scores, 
+            last_practiced=last_practiced,
+            decay_factor=decay_factor if decay_factor is not None else 0.1, # Provide default if None
+            forgetting_decay_factor=forgetting_decay_factor if forgetting_decay_factor is not None else 0.05 # Provide default if None
+        )
         if weighted_score is not None:
             all_scores.append(weighted_score)
     

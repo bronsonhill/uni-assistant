@@ -2,10 +2,12 @@ import streamlit as st
 import json
 import os
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from dotenv import load_dotenv
 import users
 from st_paywall import add_auth
+import time
+import math
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -223,7 +225,6 @@ def update_question_score(data: Dict, subject: str, week: str, question_idx: int
         st.error(f"Error updating question score in MongoDB: {str(e)}")
         
         # Fallback update in in-memory data if MongoDB fails
-        import time
         week_str = str(week) if isinstance(week, int) else week
         
         if subject in data and week_str in data[subject] and question_idx < len(data[subject][week_str]):
@@ -256,49 +257,99 @@ def get_user_email():
     # Simply check session_state for email - the most reliable source
     return st.session_state.get("email")
 
-def calculate_weighted_score(scores, decay_factor=0.1):
+def calculate_weighted_score(scores, last_practiced=None, decay_factor=0.1, forgetting_decay_factor=0.05):
     """
-    Calculate a time-weighted score for a question based on score history using MongoDB
+    Calculate a time-weighted score, adjusted for time since last practice.
     
     Args:
-        scores: List of score objects with score and timestamp
-        decay_factor: How much to decay older scores (higher = faster decay)
+        scores: List of score objects {score, timestamp}.
+        last_practiced: Timestamp (float/int) of the last practice session.
+        decay_factor: How much to decay older scores (weights past performance).
+        forgetting_decay_factor: How much the score decays due to inactivity.
         
     Returns:
-        Weighted score (float) or None if no scores available
+        Adjusted weighted score (float) or None.
     """
     try:
         import mongodb
-        return mongodb.calculate_weighted_score(scores, decay_factor)
+        # NOTE: Assumes mongodb.calculate_weighted_score will also be updated
+        # to accept last_practiced and forgetting_decay_factor.
+        # If not, the fallback logic below will be used when that fails.
+        # Pass the arguments to the mongodb function call
+        return mongodb.calculate_weighted_score(scores, last_practiced, decay_factor, forgetting_decay_factor)
+        
+    except ImportError:
+        # Handle case where mongodb module cannot be imported
+        print("MongoDB module not found, using fallback calculation.")
+        # Proceed with fallback calculation (already implemented below)
+    except AttributeError:
+        # Handle case where the function doesn't exist or accept the new args in mongodb module
+        print("mongodb.calculate_weighted_score signature mismatch or not found, using fallback.")
+        # Proceed with fallback calculation (already implemented below)
     except Exception as e:
-        # Fall back to in-memory calculation if MongoDB function fails
-        import time
-        import math
+        # Catch other potential errors during the MongoDB call
+        print(f"Error calling mongodb.calculate_weighted_score: {e}, using fallback.")
+        # Fallback logic starts here
+
+    # --- Fallback Part 1: Calculate weighted score based on past performance ---
+    if not scores:
+        return None
         
-        if not scores:
-            return None
-        
-        current_time = time.time()
-        total_weight = 0
-        total_weighted_score = 0
-        
-        for score_obj in scores:
+    current_time = time.time()
+    total_weight = 0
+    total_weighted_score = 0
+    
+    for score_obj in scores:
+        # Ensure score_obj is a dictionary and has the required keys
+        if isinstance(score_obj, dict) and "score" in score_obj and "timestamp" in score_obj:
             score = score_obj["score"]
             timestamp = score_obj["timestamp"]
             
             # Calculate time difference in days
-            time_diff = (current_time - timestamp) / (60 * 60 * 24)  # Convert seconds to days
+            time_diff_days = (current_time - timestamp) / (60 * 60 * 24) # Convert seconds to days
             
             # Exponential decay weight based on recency
-            weight = math.exp(-decay_factor * time_diff)
+            weight = math.exp(-decay_factor * time_diff_days)
             
             total_weighted_score += score * weight
             total_weight += weight
-        
-        if total_weight > 0:
-            return total_weighted_score / total_weight
         else:
-            return None
+            # Log or handle malformed score objects if necessary
+            print(f"Skipping malformed score object: {score_obj}")
+
+
+    if total_weight <= 0:
+         # Avoid division by zero if weights are negligible or no valid scores found
+         return None 
+    
+    weighted_score = total_weighted_score / total_weight
+
+    # --- Fallback Part 2: Apply decay based on time since last practice ---
+    adjusted_score = weighted_score # Start with the weighted score
+    
+    if last_practiced is not None:
+        try:
+            time_since_last_practice_days = (current_time - last_practiced) / (60 * 60 * 24)
+            
+            # Ensure time difference isn't negative (e.g., clock issues, future timestamp)
+            if time_since_last_practice_days < 0:
+                time_since_last_practice_days = 0 
+                
+            # Calculate the forgetting multiplier
+            # Ensure forgetting_decay_factor is non-negative
+            if forgetting_decay_factor < 0: forgetting_decay_factor = 0 
+            forgetting_multiplier = math.exp(-forgetting_decay_factor * time_since_last_practice_days)
+            
+            # Apply the forgetting decay
+            adjusted_score = weighted_score * forgetting_multiplier
+
+        except Exception as decay_error:
+             print(f"Error applying forgetting decay: {decay_error}")
+             # If error during decay calculation, return the unadjusted weighted_score
+             return weighted_score
+    
+    # Return the final adjusted score (or the weighted_score if no last_practiced)
+    return adjusted_score
 
 def force_cleanup_vector_store_data(email: str = None):
     """

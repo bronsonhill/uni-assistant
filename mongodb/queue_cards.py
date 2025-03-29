@@ -4,6 +4,7 @@ Provides functions to load, save, and manipulate queue cards data.
 """
 import time
 from typing import Dict, List, Optional, Any
+import math
 
 from .connection import get_collection
 
@@ -503,20 +504,24 @@ def save_ai_feedback(data: Dict, question_item: Dict, feedback_data: Dict) -> Di
     return data
 
 
-def calculate_weighted_score(scores, decay_factor=0.1):
+def calculate_weighted_score(scores, last_practiced=None, decay_factor=0.1, forgetting_decay_factor=0.05):
     """
-    Calculate a time-weighted score for a question based on score history
+    Calculate a time-weighted score for a question based on score history,
+    adjusted for time since last practice.
+    
+    This calculation is performed in memory and does not require a DB call
+    once the score data is loaded.
     
     Args:
-        scores: List of score objects with score and timestamp
-        decay_factor: How much to decay older scores (higher = faster decay)
+        scores: List of score objects {score, timestamp}.
+        last_practiced: Timestamp (float/int) of the last practice session.
+        decay_factor: How much to decay older scores (weights past performance).
+        forgetting_decay_factor: How much the score decays due to inactivity.
         
     Returns:
-        Weighted score (float) or None if no scores available
+        Adjusted weighted score (float) or None.
     """
-    import time
-    import math
-    
+    # --- Part 1: Calculate weighted score based on past performance ---
     if not scores:
         return None
     
@@ -525,22 +530,55 @@ def calculate_weighted_score(scores, decay_factor=0.1):
     total_weighted_score = 0
     
     for score_obj in scores:
-        score = score_obj["score"]
-        timestamp = score_obj["timestamp"]
-        
-        # Calculate time difference in days
-        time_diff = (current_time - timestamp) / (60 * 60 * 24)  # Convert seconds to days
-        
-        # Exponential decay weight based on recency
-        weight = math.exp(-decay_factor * time_diff)
-        
-        total_weighted_score += score * weight
-        total_weight += weight
+        # Ensure score_obj is a dictionary and has the required keys
+        if isinstance(score_obj, dict) and "score" in score_obj and "timestamp" in score_obj:
+            score = score_obj["score"]
+            timestamp = score_obj["timestamp"]
+            
+            # Calculate time difference in days
+            time_diff_days = (current_time - timestamp) / (60 * 60 * 24) # Convert seconds to days
+            
+            # Exponential decay weight based on recency
+            weight = math.exp(-decay_factor * time_diff_days)
+            
+            total_weighted_score += score * weight
+            total_weight += weight
+        else:
+            # Log or handle malformed score objects if necessary
+            print(f"Skipping malformed score object in calculate_weighted_score: {score_obj}")
+
+    if total_weight <= 0:
+         # Avoid division by zero if weights are negligible or no valid scores found
+         return None 
     
-    if total_weight == 0:  # Avoid division by zero
-        return None
-        
-    return total_weighted_score / total_weight
+    weighted_score = total_weighted_score / total_weight
+
+    # --- Part 2: Apply decay based on time since last practice ---
+    adjusted_score = weighted_score # Start with the weighted score
+    
+    if last_practiced is not None:
+        try:
+            time_since_last_practice_days = (current_time - last_practiced) / (60 * 60 * 24)
+            
+            # Ensure time difference isn't negative
+            if time_since_last_practice_days < 0:
+                time_since_last_practice_days = 0 
+                
+            # Calculate the forgetting multiplier
+            # Ensure forgetting_decay_factor is non-negative
+            if forgetting_decay_factor < 0: forgetting_decay_factor = 0 
+            forgetting_multiplier = math.exp(-forgetting_decay_factor * time_since_last_practice_days)
+            
+            # Apply the forgetting decay
+            adjusted_score = weighted_score * forgetting_multiplier
+
+        except Exception as decay_error:
+             print(f"Error applying forgetting decay in mongodb/queue_cards.py: {decay_error}")
+             # If error during decay calculation, return the unadjusted weighted_score
+             return weighted_score
+    
+    # Return the final adjusted score
+    return adjusted_score
 
 
 def update_single_question_score(data: Dict, subject: str, week: str, question_idx: int, score: int, user_answer: str = None, feedback_data: Dict = None, email: str = None) -> Dict:

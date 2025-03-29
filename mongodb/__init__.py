@@ -45,7 +45,9 @@ from mongodb.users import (
     delete_user,
     update_user_field,
     load_users,
-    save_users
+    save_users,
+    get_user_score_settings,
+    update_user_score_settings
 )
 
 # Re-export assessments functions
@@ -93,6 +95,8 @@ __all__ = [
     'update_user_field',
     'load_users',
     'save_users',
+    'get_user_score_settings',
+    'update_user_score_settings',
     
     # Assessment functions
     'load_assessments',

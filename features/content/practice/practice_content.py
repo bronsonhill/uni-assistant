@@ -95,16 +95,10 @@ def run():
     # Practice in progress
     else:
         # Top control bar
-        col1, col2, col3 = st.columns([3, 1, 1])
+        col1, col3 = st.columns([3, 1])
         
         with col1:
             st.subheader(f"Question {st.session_state.current_question_idx + 1} of {len(st.session_state.questions_queue)}")
-        
-        with col2:
-            st.write("")  # Spacing
-            if st.button("Reset Practice", use_container_width=True):
-                reset_practice()
-                st.rerun()
         
         with col3:
             st.write("")  # Spacing

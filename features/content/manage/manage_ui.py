@@ -21,12 +21,26 @@ from features.content.manage.manage_core import (
 )
 
 # Import from Home
-from Home import update_question, save_data, calculate_weighted_score
+from Home import (
+    update_question, 
+    save_data, 
+    calculate_weighted_score,
+)
 
-def display_metrics(questions: List[Dict]):
-    """Display metrics and visualizations for a set of questions"""
-    # Get metrics
-    metrics = get_metrics_for_questions(questions)
+# Import score setting functions directly from mongodb package
+from mongodb import (
+    get_user_score_settings
+)
+
+def display_metrics(questions: List[Dict], user_email: str):
+    """Display metrics and visualizations for a set of questions, using user settings."""
+    # Get user's score calculation settings
+    score_settings = get_user_score_settings(user_email)
+    decay_factor = score_settings.get("decay_factor")
+    forgetting_decay_factor = score_settings.get("forgetting_decay_factor")
+
+    # Pass factors to get_metrics_for_questions
+    metrics = get_metrics_for_questions(questions, decay_factor, forgetting_decay_factor)
     
     # Check if we have scores to display
     if metrics["score_count"] > 0:
@@ -58,24 +72,6 @@ def display_metrics(questions: List[Dict]):
             # Calculate percent of questions with good scores
             mastery_percent = metrics["mastery_percent"]
             st.metric("Mastery Level", f"{mastery_percent:.0f}%")
-        
-        # Create histogram of scores
-        with st.expander("Score Distribution", expanded=True):
-            # Collect all individual scores to display actual distribution
-            all_scores = []
-            for q in questions:
-                scores = q.get("scores", [])
-                if scores:
-                    # Use most recent score for each question
-                    score_value = scores[-1].get("score")
-                    if score_value is not None:
-                        all_scores.append(score_value)
-            
-            # Only create histogram if we have scores
-            if all_scores:
-                create_score_histogram(all_scores)
-            else:
-                st.info("No score data available to display.")
     else:
         st.info("No scores available yet. Practice with these questions to see metrics.")
 
@@ -99,14 +95,26 @@ def create_score_histogram(scores):
     st.altair_chart(histogram, use_container_width=True)
 
 def display_question(index, question, subject, week, user_email):
-    """Display a single question with its details and actions"""
+    """Display a single question, using user score settings."""
     # Create unique hash for this question
     question_hash = hashlib.md5(f"{subject}_{week}_{index}_{question['question'][:20]}".encode()).hexdigest()[:8]
     
+    # Get user's score calculation settings
+    score_settings = get_user_score_settings(user_email)
+    decay_factor = score_settings.get("decay_factor")
+    forgetting_decay_factor = score_settings.get("forgetting_decay_factor")
+
     with st.container(border=True):
         # Get score info
         scores = question.get("scores", [])
-        weighted_score = calculate_weighted_score(scores)
+        last_practiced = question.get("last_practiced")
+        # Calculate score using user factors
+        weighted_score = calculate_weighted_score(
+            scores, 
+            last_practiced=last_practiced, 
+            decay_factor=decay_factor, 
+            forgetting_decay_factor=forgetting_decay_factor
+        )
         score_display = f"{get_score_emoji(weighted_score)} {weighted_score:.1f}/5" if weighted_score is not None else "⚪ 0/5"
         
         col1, col2, col3, col4 = st.columns([5, 1, 1, 1])
@@ -135,12 +143,12 @@ def display_question(index, question, subject, week, user_email):
                 st.success("Question deleted!")
                 st.rerun()
         
-        # Add details expander below all columns
+        # Pass user factors to details display
         with st.expander(f"View details for Q{index+1}"):
-            display_question_details(question)
+            display_question_details(question, decay_factor, forgetting_decay_factor)
 
-def display_question_details(question):
-    """Display details for a question including answer and score history"""
+def display_question_details(question, decay_factor, forgetting_decay_factor):
+    """Display details, using provided score factors."""
     # Question content
     st.write("**Question:**")
     st.write(question["question"])
@@ -151,7 +159,14 @@ def display_question_details(question):
     
     # Score history
     scores = question.get("scores", [])
-    weighted_score = calculate_weighted_score(scores)
+    last_practiced = question.get("last_practiced")
+    # Calculate score using provided factors
+    weighted_score = calculate_weighted_score(
+        scores, 
+        last_practiced=last_practiced, 
+        decay_factor=decay_factor, 
+        forgetting_decay_factor=forgetting_decay_factor
+    )
     
     # Display score history header and current score
     st.write("**Score History:**")
@@ -184,29 +199,50 @@ def display_past_answer(index, score_entry):
     st.markdown("---")
 
 def display_questions(user_email, is_subscribed):
-    """Display the list of questions with filtering options"""
-    # Select subject
-    subject_to_view = st.selectbox("Select Subject", list(st.session_state.data.keys()), key="view_subject")
+    """
+    Display the list of questions with filtering options.
+    """
+    # --- Remove Settings Button and Dialog Logic --- 
+    # if "show_score_settings" not in st.session_state:
+    #     st.session_state.show_score_settings = False
+    # settings_col, filter_col1, filter_col2 = st.columns([1, 4, 4])
+    # with settings_col:
+    #     if st.button("⚙️", help="Score Calculation Settings"):
+    #         st.session_state.show_score_settings = not st.session_state.show_score_settings
+    #         st.rerun()
+    # if st.session_state.show_score_settings:
+    #     display_score_settings_dialog(user_email)
+    #     st.markdown("---")
+
+    # --- Keep Existing Filter Logic (adjust columns) --- 
+    filter_col1, filter_col2 = st.columns(2) # Use 2 columns for filters now
+    with filter_col1:
+        # Select subject (use original key)
+        subject_choices = get_subject_choices(st.session_state.data)
+        if not subject_choices:
+             st.info("No subjects found. Add questions first.")
+             return # Exit if no subjects
+        subject_to_view = st.selectbox("Select Subject", subject_choices, key="view_subject")
     
     if subject_to_view:
-        # Select week
-        week_options = get_week_choices(st.session_state.data, subject_to_view)
-        
-        if not week_options:
-            st.info(f"No weeks found for {subject_to_view}. Add questions for this subject first.")
-            return
-            
-        week_to_view = st.selectbox("Select Week", week_options, key="view_week")
+        with filter_col2:
+            # Select week (use original key)
+            week_options = get_week_choices(st.session_state.data, subject_to_view)
+            if not week_options:
+                st.info(f"No weeks found for {subject_to_view}. Add questions first.")
+                return
+            week_to_view = st.selectbox("Select Week", week_options, key="view_week")
         
         if week_to_view:
+            # --- Existing Question Display --- 
             questions = get_questions_for_subject_week(st.session_state.data, subject_to_view, week_to_view)
             
             st.subheader(f"Questions for {subject_to_view} - Week {week_to_view}")
             
-            # Calculate and display metrics for these questions
-            display_metrics(questions)
+            # Calculate and display metrics (still needs user factors)
+            display_metrics(questions, user_email)
             
-            # Display questions with delete and edit buttons
+            # Display questions (still needs user factors)
             for i, q in enumerate(questions):
                 display_question(i, q, subject_to_view, week_to_view, user_email)
 

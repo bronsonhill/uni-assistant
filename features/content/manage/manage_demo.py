@@ -202,7 +202,9 @@ def _display_demo_question(index, question, key_prefix):
     with st.container(border=True):
         # Get score info
         scores = question.get("scores", [])
-        weighted_score = calculate_weighted_score(scores) if scores else 3.5
+        # Demo data doesn't have last_practiced, so we pass None explicitly
+        # If scores exist, calculate; otherwise, use the demo default 3.5
+        weighted_score = calculate_weighted_score(scores, last_practiced=None) if scores else 3.5
         score_display = f"{get_score_emoji(weighted_score)} {weighted_score:.1f}/5" if weighted_score is not None else "⚪ 0/5"
         
         col1, col2, col3, col4 = st.columns([5, 1, 1, 1])

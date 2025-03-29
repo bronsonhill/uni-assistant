@@ -56,6 +56,8 @@ def init_session_state():
         st.session_state.api_error = None
     if "file_uploaded" not in st.session_state:
         st.session_state.file_uploaded = False
+    if "custom_questions" not in st.session_state:
+        st.session_state.custom_questions = ""
 
 def extract_vector_store_id(vector_store_data):
     """
@@ -110,7 +112,7 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
     Process the uploaded file and generate questions using both vector store and direct file content
     
     Args:
-        uploaded_file: The streamlit uploaded file object
+        uploaded_file: The streamlit uploaded file object (can be None if using custom text)
         subject: The subject for the questions
         week: The week number for the questions
         user_email: The user's email address
@@ -124,6 +126,84 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
     st.session_state.num_questions = num_questions
     
     try:
+        # Initialize OpenAI client
+        client = setup_openai_client()
+        if not client:
+            st.session_state.api_error = "Could not initialize OpenAI client."
+            st.session_state.generation_in_progress = False
+            return []
+        
+        # If no file is uploaded but custom text is provided, generate directly from text
+        if not uploaded_file and st.session_state.custom_questions.strip():
+            # Define the question generation tool
+            tools = [
+                {
+                    "type": "function",
+                    "name": "generate_questions",
+                    "description": "Generate study questions based on the provided text",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "questions": {
+                                "type": "array",
+                                "description": "List of generated questions with their answers",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "question": {
+                                            "type": "string",
+                                            "description": "The question text"
+                                        },
+                                        "answer": {
+                                            "type": "string",
+                                            "description": "The answer to the question"
+                                        },
+                                        "explanation": {
+                                            "type": "string",
+                                            "description": "Explanation of why the answer is correct"
+                                        }
+                                    },
+                                    "required": ["question", "answer"]
+                                }
+                            }
+                        },
+                        "required": ["questions"]
+                    }
+                }
+            ]
+            
+            # Create context from custom text
+            context = f"""Generate {num_questions} study questions for the subject '{subject}', Week {week}.
+
+Here is the content to generate questions from:
+{st.session_state.custom_questions}
+
+The questions should test understanding of key concepts, terminology, and applications from the provided text.
+Include a mix of factual recall, understanding, and application questions."""
+            
+            # Call the OpenAI API with function definitions
+            response = client.responses.create(
+                model="gpt-4o",
+                instructions=f"You are an expert question generator for educational content in {subject}. Generate {num_questions} high-quality study questions with answers based on the provided text.",
+                input=context,
+                tools=tools,
+                tool_choice={"type": "function", "name": "generate_questions"}
+            )
+            
+            # Extract questions from the function call
+            questions = []
+            if hasattr(response, 'output') and response.output:
+                for item in response.output:
+                    if item.type == "function_call":
+                        try:
+                            args = json.loads(item.arguments)
+                            questions = args.get("questions", [])
+                        except Exception as e:
+                            print(f"Error parsing function call: {e}")
+            
+            st.session_state.generation_in_progress = False
+            return questions
+            
         # Handle uploaded file - support multiple files or single file
         if isinstance(uploaded_file, list):
             # Multiple files uploaded
@@ -157,13 +237,6 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
             st.session_state.generation_in_progress = False
             return []
             
-        # Initialize OpenAI client
-        client = setup_openai_client()
-        if not client:
-            st.session_state.api_error = "Could not initialize OpenAI client."
-            st.session_state.generation_in_progress = False
-            return []
-        
         # First, upload the file to OpenAI to get direct access
         try:
             file_upload = client.files.create(
@@ -227,6 +300,10 @@ Additionally, you can search the vector store for more context using the file_se
 The questions should test understanding of key concepts, terminology, and applications from the document.
 Include a mix of factual recall, understanding, and application questions.
 Make sure to use both the direct content and vector search results to generate comprehensive questions."""
+
+            # Add custom questions if provided
+            if st.session_state.custom_questions.strip():
+                context += f"\n\nPlease also consider these specific questions or topics when generating questions:\n{st.session_state.custom_questions}"
             
             # Call the OpenAI API with function definitions and file_search tool
             response = client.responses.create(
@@ -271,15 +348,15 @@ Make sure to use both the direct content and vector search results to generate c
 
 def generate_questions_without_upload(subject: str, week: int, user_email: str, num_questions: int = 5, selected_files: List[str] = None):
     """
-    Generate questions without uploading a file (uses existing vector store) using OpenAI responses API
+    Generate questions from existing vector store without uploading a new file
     
     Args:
         subject: The subject for the questions
         week: The week number for the questions
         user_email: The user's email address
         num_questions: Number of questions to generate (default: 5)
-        selected_files: List of file IDs to use for context (if None, uses all files)
-        
+        selected_files: List of file IDs to use for context (default: None)
+    
     Returns:
         List of generated questions
     """
@@ -293,76 +370,18 @@ def generate_questions_without_upload(subject: str, week: int, user_email: str, 
             st.session_state.api_error = "Could not initialize RAG manager"
             st.session_state.generation_in_progress = False
             return []
-            
-        # Get vector store ID for this subject and week
-        vector_store_id = get_vector_store_id_for_subject_week(subject, week)
         
+        # Get vector store ID
+        vector_store_id = get_vector_store_id_for_subject_week(subject, week)
         if not vector_store_id:
-            st.session_state.api_error = "No vector store found for this subject and week."
+            st.session_state.api_error = "Could not find vector store for this subject and week"
             st.session_state.generation_in_progress = False
             return []
-        
+            
         # Initialize OpenAI client
         client = setup_openai_client()
         if not client:
             st.session_state.api_error = "Could not initialize OpenAI client."
-            st.session_state.generation_in_progress = False
-            return []
-        
-        # Get list of files in the vector store
-        files = st.session_state.rag_manager.list_vector_store_files(vector_store_id)
-        if not files:
-            st.session_state.api_error = "No files found in the vector store."
-            st.session_state.generation_in_progress = False
-            return []
-            
-        # Filter files based on selection if specified
-        if selected_files:
-            files = [f for f in files if f["id"] in selected_files]
-            if not files:
-                st.session_state.api_error = "No selected files found in the vector store."
-                st.session_state.generation_in_progress = False
-                return []
-        
-        # Get content from selected files
-        file_contents = []
-        for file in files:
-            try:
-                # Try to get content directly from vector store file
-                try:
-                    print(f"Getting content for file {file['filename']} from vector store")
-                    response = client.vector_stores.files.content(
-                        vector_store_id=vector_store_id,
-                        file_id=file["id"]
-                    )
-                    print(f"Response: {response}")
-                    
-                    # The response has a data array with FileContentResponse objects
-                    if hasattr(response, 'data') and isinstance(response.data, list):
-                        for content_response in response.data:
-                            if hasattr(content_response, 'text'):
-                                file_contents.append({
-                                    "filename": file["filename"],
-                                    "content": content_response.text
-                                })
-                                break  # We only need the first content block
-                    
-                except Exception as ve:
-                    print(f"Error getting content from vector store for file {file['filename']}: {ve}")
-                    # If vector store content retrieval fails, try direct file content
-                    if file["id"].startswith("file-"):
-                        print(f"Falling back to direct file content for {file['filename']}")
-                        file_content = client.files.content(file["id"]).text
-                        file_contents.append({
-                            "filename": file["filename"],
-                            "content": file_content
-                        })
-            except Exception as e:
-                print(f"Error getting content for file {file['filename']}: {e}")
-                continue
-        
-        if not file_contents:
-            st.session_state.api_error = "Could not retrieve content from any files. Please try uploading the files again."
             st.session_state.generation_in_progress = False
             return []
         
@@ -408,20 +427,21 @@ def generate_questions_without_upload(subject: str, week: int, user_email: str, 
             }
         ]
         
-        # Construct context from selected files
-        context = f"Generate {num_questions} additional study questions for the subject '{subject}', Week {week}.\n\n"
-        context += "Here is the content from the selected files:\n\n"
-        
-        for file_content in file_contents:
-            context += f"From {file_content['filename']}:\n{file_content['content']}\n\n"
-        
-        context += "The questions should be different from previously generated ones and focus on deeper understanding. "
-        context += "Include questions that require critical thinking and application of concepts from the documents."
+        # Add the user message with vector search context
+        context = f"""Generate {num_questions} study questions for the subject '{subject}', Week {week}.
+
+You can search the vector store for context using the file_search tool.
+The questions should test understanding of key concepts, terminology, and applications from the document.
+Include a mix of factual recall, understanding, and application questions."""
+
+        # Add custom questions if provided
+        if st.session_state.custom_questions.strip():
+            context += f"\n\nPlease also consider these specific questions or topics when generating questions:\n{st.session_state.custom_questions}"
         
         # Call the OpenAI API with function definitions and file_search tool
         response = client.responses.create(
             model="gpt-4o",
-            instructions=f"You are an expert question generator for educational content in {subject}. Generate {num_questions} high-quality study questions with answers based on the materials for Week {week}.",
+            instructions=f"You are an expert question generator for educational content in {subject}. Generate {num_questions} high-quality study questions with answers based on the vector search results.",
             input=context,
             tools=tools,
             tool_choice={"type": "function", "name": "generate_questions"}
@@ -440,10 +460,10 @@ def generate_questions_without_upload(subject: str, week: int, user_email: str, 
         
         st.session_state.generation_in_progress = False
         return questions
-    
+        
     except Exception as e:
         print(f"Error generating questions: {e}")
-        st.session_state.api_error = f"An error occurred: {str(e)}"
+        st.session_state.api_error = f"Error generating questions: {str(e)}"
         st.session_state.generation_in_progress = False
         return []
 
@@ -559,6 +579,13 @@ def display_file_upload(is_subscribed: bool):
         accept_multiple_files=False
     )
     
+    # Add custom questions text area
+    st.text_area(
+        "Optional: Specify topics or questions to focus on from your uploaded content, or prompt AI to generate questions based on a specific topic or question.",
+        key="custom_questions",
+        help="Enter specific topics or questions you'd like to be covered in the generated questions. This will help guide the AI to focus on particular areas of interest."
+    )
+    
     # Set file uploaded flag
     file_uploaded = uploaded_file is not None
     st.session_state.file_uploaded = file_uploaded
@@ -574,16 +601,16 @@ def display_file_upload(is_subscribed: bool):
     col1, col2 = st.columns(2)
     
     with col1:
-        # Generate from Upload button - enabled only if a file is uploaded
-        if st.button("Generate from Upload", 
+        # Generate from Upload button - enabled if a file is uploaded or custom text is provided
+        can_generate = file_uploaded or bool(st.session_state.custom_questions.strip())
+        if st.button("Generate Questions", 
                     key="generate_from_upload_btn", 
                     use_container_width=True,
-                    disabled=not file_uploaded,
-                    type="primary" if file_uploaded else "secondary"):
+                    type="primary" if can_generate else "secondary"):
             if not subject:
                 st.error("Please enter a subject.")
-            elif file_uploaded:
-                # Call the callback with the uploaded file info
+            elif can_generate:
+                # Call the callback with the uploaded file info (can be None)
                 on_generate_questions(subject, week, uploaded_file)
     
     with col2:
@@ -677,12 +704,14 @@ def display_file_upload(is_subscribed: bool):
                         st.warning("Please select at least one file to use for context.")
 
     # Button state explanation
-    if not file_uploaded and not has_kb:
-        st.info("Upload a file to generate questions or select a subject and week that has previous uploads.")
+    if not file_uploaded and not has_kb and not st.session_state.custom_questions.strip():
+        st.info("Upload a file, enter custom text, or select a subject and week that has previous uploads to generate questions.")
+    elif not file_uploaded and not has_kb:
+        st.info("You can generate questions from your custom text input or upload a file to start building a knowledge base.")
     elif not file_uploaded:
-        st.info("Previous uploads found for this subject and week. You can generate more questions from them or upload a new file.")
+        st.info("Previous uploads found for this subject and week. You can generate more questions from them, upload a new file, or use custom text input.")
     elif not has_kb:
-        st.info("First time using this subject and week. Upload your file to start building a knowledge base.")
+        st.info("First time using this subject and week. Upload your file to start building a knowledge base or use custom text input.")
 
     # Add collapsible information section at the bottom
     with st.expander("💡 Tips for Generating Questions"):

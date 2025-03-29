@@ -7,10 +7,13 @@ import time
 from typing import Dict, List, Optional, Any
 
 from .connection import get_collection
+from pymongo.collection import Collection
 
 # Collection name for users
 USERS_COLLECTION = "users"
 
+DEFAULT_DECAY_FACTOR = 0.1
+DEFAULT_FORGETTING_DECAY_FACTOR = 0.05
 
 def load_users() -> Dict:
     """
@@ -155,3 +158,44 @@ def update_user_field(email: str, field: str, value: Any) -> bool:
     )
     
     return result.matched_count > 0
+
+
+def get_user_score_settings(email: str) -> Dict[str, float]:
+    """
+    Retrieve score calculation settings for a user.
+    Returns default settings if none are found.
+    """
+    collection = get_collection("users")
+    user = collection.find_one({"email": email})
+    
+    if user and "score_settings" in user and isinstance(user["score_settings"], dict):
+        settings = user["score_settings"]
+        # Ensure both keys exist, fall back to default if one is missing
+        return {
+            "decay_factor": settings.get("decay_factor", DEFAULT_DECAY_FACTOR),
+            "forgetting_decay_factor": settings.get("forgetting_decay_factor", DEFAULT_FORGETTING_DECAY_FACTOR)
+        }
+    else:
+        # Return defaults if user or settings don't exist
+        return {
+            "decay_factor": DEFAULT_DECAY_FACTOR,
+            "forgetting_decay_factor": DEFAULT_FORGETTING_DECAY_FACTOR
+        }
+
+
+def update_user_score_settings(email: str, settings: Dict[str, float]) -> bool:
+    """
+    Update score calculation settings for a user.
+    """
+    collection = get_collection("users")
+    result = collection.update_one(
+        {"email": email},
+        {"$set": {"score_settings": settings}},
+        upsert=False # Don't create user if not found, should exist already
+    )
+    
+    if result.matched_count == 0:
+        print(f"Warning: Attempted to update score settings for non-existent user: {email}")
+        return False
+        
+    return result.modified_count > 0 or result.matched_count > 0 # Return True if updated or already matched
