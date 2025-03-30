@@ -11,7 +11,11 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import altair as alt
-from features.content.statistics.statistics_core import get_last_30_days_attempts, get_score_distribution
+from features.content.statistics.statistics_core import (
+    get_last_30_days_attempts, 
+    get_score_distribution,
+    get_subject_week_scores
+)
 
 def create_score_histogram(scores):
     """Create a histogram visualization of scores"""
@@ -189,3 +193,46 @@ def display_practice_stats(stats: Dict[str, Any]) -> None:
                 showlegend=False
             )
             st.plotly_chart(fig, use_container_width=True)
+
+def display_subject_week_heatmap(email: str) -> None:
+    """Display a heatmap of scores by subject and week."""
+    
+    # Get the data
+    subject_week_scores = get_subject_week_scores(email)
+    
+    if not subject_week_scores:
+        st.info("No practice data available yet.")
+        return
+    
+    # Convert to DataFrame for heatmap
+    data = []
+    for subject, weeks in subject_week_scores.items():
+        for week, score in weeks.items():
+            data.append({
+                'Subject': subject,
+                'Week': f'Week {week}',
+                'Score': score
+            })
+    
+    df = pd.DataFrame(data)
+    
+    # Create heatmap
+    fig = px.imshow(
+        df.pivot(index='Subject', columns='Week', values='Score'),
+        title='Average Scores by Subject and Week',
+        color_continuous_scale='RdYlGn',  # Red to Green color scale
+        aspect='auto',
+        labels=dict(
+            x='Week',
+            y='Subject',
+            color='Average Score'
+        ),
+        range_color=[0, 5]  # Set the color scale range from 0 to 5
+    )
+    
+    fig.update_layout(
+        height=max(400, len(subject_week_scores) * 50),  # Dynamic height based on number of subjects
+        width=800  # Fixed width in pixels
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)

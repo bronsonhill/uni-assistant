@@ -186,4 +186,29 @@ def get_last_30_days_attempts(practice_history: List[Dict[str, Any]]) -> List[Di
 
 def get_score_distribution(practice_history: List[Dict[str, Any]]) -> List[float]:
     """Get list of scores for distribution analysis."""
-    return [attempt["score"] for attempt in practice_history] 
+    return [attempt["score"] for attempt in practice_history]
+
+def get_subject_week_scores(email: str) -> Dict[str, Dict[str, float]]:
+    """Get average scores for each subject-week combination."""
+    data = queue_cards.load_data(email)
+    subject_week_scores = defaultdict(lambda: defaultdict(list))
+    
+    for subject, weeks in data.items():
+        for week, questions in weeks.items():
+            if isinstance(questions, list):
+                for question in questions:
+                    if "scores" in question:
+                        scores = [score["score"] for score in question["scores"]]
+                        subject_week_scores[subject][week].extend(scores)
+    
+    # Calculate averages for each subject-week combination
+    averages = {}
+    for subject, weeks in subject_week_scores.items():
+        averages[subject] = {}
+        for week, scores in weeks.items():
+            if scores:
+                averages[subject][week] = sum(scores) / len(scores)
+            else:
+                averages[subject][week] = 0
+    
+    return dict(averages) 

@@ -291,9 +291,11 @@ def init_session_state():
     if "show_answer" not in st.session_state:
         st.session_state.show_answer = False
     if "practice_subject" not in st.session_state:
-        st.session_state.practice_subject = "All"
+        # Get the first available subject if any exist
+        data_subjects = sorted(list(st.session_state.data.keys()))
+        st.session_state.practice_subject = data_subjects[0] if data_subjects else ""
     if "practice_week" not in st.session_state:
-        st.session_state.practice_week = "All"
+        st.session_state.practice_week = ""
     if "selected_practice_weeks" not in st.session_state:
         st.session_state.selected_practice_weeks = []
     if "practice_order" not in st.session_state:

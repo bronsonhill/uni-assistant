@@ -24,7 +24,8 @@ from features.content.statistics.statistics_core import (
 from features.content.statistics.statistics_ui import (
     display_overview_stats,
     display_content_stats,
-    display_practice_stats
+    display_practice_stats,
+    display_subject_week_heatmap
 )
 
 def run():
@@ -50,5 +51,6 @@ def run():
 
     # Display statistics sections
     display_overview_stats(user_stats)
+    display_subject_week_heatmap(user_email)
     display_practice_stats(practice_stats) 
     display_content_stats(content_stats)

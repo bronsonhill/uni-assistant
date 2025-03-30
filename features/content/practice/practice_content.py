@@ -67,22 +67,17 @@ def run():
         show_demo_content()
         return
 
-    # Track if we need a rerun after initialization
-    need_rerun = False
-    
-    # Load data if not already in session state (only for authenticated users)
+    # Load data first if not already loaded
     if "data" not in st.session_state:
         st.session_state.data = load_data(user_email)
-        need_rerun = True
-    
-    # Initialize practice-specific session state
-    if "practice_active" not in st.session_state:
-        init_session_state()
-        need_rerun = True
-    
-    # If we just initialized state, trigger a rerun to ensure everything renders properly
-    if need_rerun:
         st.rerun()
+        return
+
+    # Initialize practice-specific session state
+    if not all(key in st.session_state for key in ["practice_active", "questions_queue", "current_question_idx"]):
+        init_session_state()
+        st.rerun()
+        return
 
     # Practice setup screen
     if not st.session_state.practice_active:

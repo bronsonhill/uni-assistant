@@ -238,7 +238,12 @@ def display_setup_screen(is_authenticated):
     # Get unique subjects and weeks
     data_subjects = sorted(list(st.session_state.data.keys()))
     
-    # Create subjects list (removed "All" option)
+    if not data_subjects:
+        st.warning("No subjects available. Add some questions first!")
+        st.link_button("Go to Add Cards with AI", "/render_add_ai")
+        return
+    
+    # Create subjects list (without "All" option)
     subjects = data_subjects
     
     # Default values
@@ -279,14 +284,14 @@ def display_setup_screen(is_authenticated):
 
     # Set practice week based on the selection FROM THE WIDGET
     if not selected_weeks:
-        st.session_state.practice_week = "All"
+        st.session_state.practice_week = ""
         # Also ensure selected_practice_weeks is empty
         st.session_state.selected_practice_weeks = []
         st.info("Practicing with all available weeks.")
     else:
-        # If multiple weeks selected, set to "All" and handle in queue building
+        # If multiple weeks selected, store all selected weeks
         if len(selected_weeks) > 1:
-            st.session_state.practice_week = "All"
+            st.session_state.practice_week = selected_weeks[0]  # Use first week as primary
             # Store the selected weeks in a new session state variable
             st.session_state.selected_practice_weeks = selected_weeks
             st.info(f"Practicing with selected weeks: {', '.join(selected_weeks)}")
@@ -296,7 +301,7 @@ def display_setup_screen(is_authenticated):
                 st.session_state.selected_practice_weeks = selected_weeks
             except (IndexError, TypeError):
                 # Handle case where selected_weeks is empty or not a list
-                st.session_state.practice_week = "All"
+                st.session_state.practice_week = ""
                 st.session_state.selected_practice_weeks = []
                 st.info("Defaulting to all available weeks.")
     
@@ -369,30 +374,34 @@ def display_setup_screen(is_authenticated):
             
         # Prepare queue of questions
         queue = []
-        for week in selected_weeks:
-            if subject in st.session_state.data and week in st.session_state.data[subject]:
-                questions_list = st.session_state.data[subject][week]
-                
-                for i, q in enumerate(questions_list):
-                    # Only add questions that have questions
-                    if "question" in q and q["question"]:
-                        # Check if the question meets the score threshold
-                        should_include = True
-                        if "scores" in q and q["scores"]:
-                            # Get the most recent score
-                            latest_score = q["scores"][-1]["score"]
-                            if latest_score > st.session_state.max_score_threshold:
-                                should_include = False
-                        
-                        if should_include:
-                            queue.append({
-                                "subject": subject,
-                                "week": week,
-                                "question_idx": i,  # Change from "index" to "question_idx" to match expected format
-                                "question": q["question"],  # Include the actual question text
-                                "answer": q["answer"],      # Include the answer text
-                                "idx": i  # Add idx key for question_key tracking
-                            })
+        if subject in st.session_state.data:
+            # If no weeks selected, use all weeks
+            weeks_to_use = selected_weeks if selected_weeks else available_weeks
+            
+            for week in weeks_to_use:
+                if week in st.session_state.data[subject]:
+                    questions_list = st.session_state.data[subject][week]
+                    
+                    for i, q in enumerate(questions_list):
+                        # Only add questions that have questions
+                        if "question" in q and q["question"]:
+                            # Check if the question meets the score threshold
+                            should_include = True
+                            if "scores" in q and q["scores"]:
+                                # Get the most recent score
+                                latest_score = q["scores"][-1]["score"]
+                                if latest_score > st.session_state.max_score_threshold:
+                                    should_include = False
+                            
+                            if should_include:
+                                queue.append({
+                                    "subject": subject,
+                                    "week": week,
+                                    "question_idx": i,  # Change from "index" to "question_idx" to match expected format
+                                    "question": q["question"],  # Include the actual question text
+                                    "answer": q["answer"],      # Include the answer text
+                                    "idx": i  # Add idx key for question_key tracking
+                                })
         
         # Shuffle if random mode
         if practice_mode == "Random":
