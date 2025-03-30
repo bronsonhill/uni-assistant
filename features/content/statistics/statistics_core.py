@@ -5,6 +5,7 @@ This module handles data processing and statistics calculations.
 """
 from typing import Dict, Any, List, Tuple
 import datetime
+from datetime import timezone
 from collections import defaultdict
 import numpy as np
 from mongodb import queue_cards, assessments
@@ -37,8 +38,11 @@ def get_user_statistics(email: str) -> Dict[str, Any]:
                         total_attempts += len(scores)
                         total_score += sum(scores)
                         
-                        # Get practice dates from score timestamps
-                        practice_dates.extend([score["timestamp"] for score in question["scores"]])
+                        # Get practice dates from score timestamps, properly handling timezone
+                        practice_dates.extend([
+                            datetime.datetime.fromtimestamp(score["timestamp"], tz=timezone.utc)
+                            for score in question["scores"]
+                        ])
     
     # Calculate average score (out of 5)
     average_score = (total_score / total_attempts) if total_attempts > 0 else 0
@@ -80,7 +84,7 @@ def get_content_statistics(email: str) -> Dict[str, Any]:
                             "subject": subject,
                             "week": week,
                             "question": question["question"][:50] + "...",
-                            "added_at": question["added_at"]
+                            "added_at": datetime.datetime.fromtimestamp(question["added_at"], tz=timezone.utc)
                         })
     
     # Sort recent additions by date
@@ -114,10 +118,10 @@ def get_practice_statistics(email: str) -> Dict[str, Any]:
                         total_attempts += len(scores)
                         correct_answers += sum(1 for score in scores if score >= 3.5)  # 70% of 5
                         
-                        # Record practice history
+                        # Record practice history with proper timezone handling
                         for score_data in question["scores"]:
                             practice_history.append({
-                                "date": score_data["timestamp"],
+                                "date": datetime.datetime.fromtimestamp(score_data["timestamp"], tz=timezone.utc),
                                 "score": score_data["score"],  # Keep score out of 5
                                 "subject": subject
                             })
@@ -154,22 +158,19 @@ def get_practice_statistics(email: str) -> Dict[str, Any]:
         "subject_performance": dict(subject_performance)
     }
 
-def calculate_streak(practice_history: List[float]) -> int:
+def calculate_streak(practice_history: List[datetime.datetime]) -> int:
     """Calculate the user's current practice streak."""
     if not practice_history:
         return 0
         
     streak = 0
-    today = datetime.datetime.now().date()
-    
-    # Convert timestamps to dates
-    practice_dates = [datetime.datetime.fromtimestamp(ts).date() for ts in practice_history]
+    today = datetime.datetime.now(timezone.utc).date()
     
     # Sort practice history by date
-    sorted_dates = sorted(practice_dates, reverse=True)
+    sorted_dates = sorted(practice_history, reverse=True)
     
     for date in sorted_dates:
-        if date == today - datetime.timedelta(days=streak):
+        if date.date() == today - datetime.timedelta(days=streak):
             streak += 1
         else:
             break
@@ -178,10 +179,10 @@ def calculate_streak(practice_history: List[float]) -> int:
 
 def get_last_30_days_attempts(practice_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Get practice attempts from the last 30 days."""
-    thirty_days_ago = datetime.datetime.now() - datetime.timedelta(days=30)
+    thirty_days_ago = datetime.datetime.now(timezone.utc) - datetime.timedelta(days=30)
     return [
         attempt for attempt in practice_history
-        if datetime.datetime.fromtimestamp(attempt["date"]) >= thirty_days_ago
+        if attempt["date"] >= thirty_days_ago
     ]
 
 def get_score_distribution(practice_history: List[Dict[str, Any]]) -> List[float]:

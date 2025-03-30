@@ -60,13 +60,15 @@ from mongodb.assessments import (
     delete_assessment
 )
 
-# Re-export chat_history functions
+# Re-export chat_history functions and constants
 from mongodb.chat_history import (
     save_chat_session,
     get_chat_sessions,
     get_chat_session,
     rename_chat_session,
-    delete_chat_session
+    delete_chat_session,
+    CHAT_TYPE_TUTOR,
+    CHAT_TYPE_PRACTICE
 )
 
 # All exported functions and constants
@@ -111,5 +113,7 @@ __all__ = [
     'get_chat_sessions',
     'get_chat_session',
     'rename_chat_session',
-    'delete_chat_session'
+    'delete_chat_session',
+    'CHAT_TYPE_TUTOR',
+    'CHAT_TYPE_PRACTICE'
 ]

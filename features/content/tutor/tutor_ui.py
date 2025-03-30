@@ -206,6 +206,11 @@ def display_chat_history(user_email: Optional[str], on_load_callback: Callable =
             if cancel:
                 st.session_state.renaming_chat = False
                 st.rerun()
+    
+    # Add a reset button at the bottom of chat history
+    if st.button("Reset Chat", key="reset_chat_history"):
+        reset_chat()
+        st.rerun()
 
 def display_chat_interface(vector_store_id: str, selected_subject: str, selected_week: str):
     """Display the chat interface and handle messages"""
@@ -238,8 +243,9 @@ def display_chat_interface(vector_store_id: str, selected_subject: str, selected
     from features.content.tutor.vector_store_manager import display_vector_store_files
     display_vector_store_files(actual_id, selected_subject, selected_week)
     
-    # Chat interface
-    chat_container = st.container(height=500, border=True)
+    # Initialize chat messages if needed
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
     
     # Add custom title input for the chat
     if st.session_state.chat_messages:
@@ -249,67 +255,67 @@ def display_chat_interface(vector_store_id: str, selected_subject: str, selected
             current_title = st.session_state.chat_title or f"{selected_subject} - Week {selected_week}"
             new_chat_title = st.text_input("Chat title:", value=current_title, key="chat_title_input")
             
-            # Update chat title if changed
             if new_chat_title != current_title:
-                st.session_state.chat_title = new_chat_title
-                
-                # Update in database if we have a current chat ID
-                if st.session_state.current_chat_id and "email" in st.session_state:
-                    mongodb.rename_chat_session(
-                        st.session_state.current_chat_id,
-                        st.session_state.email,
-                        new_chat_title
-                    )
+                st.session_state.chat_title = new_title
+                st.rerun()
     
+    # Chat interface
+    chat_container = st.container(height=500, border=True)
+    
+    # Display chat messages inside the container
     with chat_container:
-        # Display chat messages
-        for msg in st.session_state.chat_messages:
-            with st.chat_message(msg["role"]):
-                st.write(msg["content"])
-    
-    # User input with a specific key for tutor chat
-    user_message = st.chat_input("Ask a question about your course materials...", key="tutor_chat_input")
-    
-    if user_message:
-        # Add user message to chat history
-        st.session_state.chat_messages.append({"role": "user", "content": user_message})
+        # Display existing messages
+        for message in st.session_state.chat_messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
         
-        # Display user message
-        with chat_container:
+        # Chat input
+        if prompt := st.chat_input("Ask a question about your course materials"):
+            # Add user message to chat history
+            st.session_state.chat_messages.append({"role": "user", "content": prompt})
+            
+            # Display user message immediately
             with st.chat_message("user"):
-                st.write(user_message)
-        
-        # Display assistant message with streaming
-        with chat_container:
+                st.markdown(prompt)
+            
+            # Display assistant message placeholder
             with st.chat_message("assistant"):
-                # Create a placeholder for the streaming response
                 message_placeholder = st.empty()
                 full_response = ""
                 
-                # Define the stream handler function
-                def stream_handler(content):
-                    nonlocal full_response
-                    full_response += content
-                    # Update the placeholder with the accumulated response
-                    message_placeholder.markdown(full_response + "▌")
-                
-                # Get assistant response with streaming
-                response = send_message(
-                    message=user_message, 
-                    vector_store_id=actual_id,
-                    subject=selected_subject,
-                    week=selected_week,
-                    stream_handler=stream_handler,
-                    stream=True
-                )
-                
-                # Update the final response without the cursor
-                message_placeholder.markdown(full_response)
-        
-        # Add assistant response to chat history
-        st.session_state.chat_messages.append({"role": "assistant", "content": response})
-        
-        # Force a rerun to update the UI
+                # Stream the response
+                try:
+                    def stream_handler(content):
+                        nonlocal full_response
+                        full_response += content
+                        message_placeholder.markdown(full_response + "▌")
+                    
+                    # Send message and get response
+                    response = send_message(
+                        prompt,
+                        actual_id,
+                        selected_subject,
+                        selected_week,
+                        stream_handler=stream_handler,
+                        stream=True
+                    )
+                    
+                    # Update the final message
+                    message_placeholder.markdown(full_response)
+                    
+                    # Add assistant response to chat history
+                    st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
+                    
+                except Exception as e:
+                    error_message = f"Error: {str(e)}"
+                    message_placeholder.error(error_message)
+                    st.error("Failed to get response from AI. Please try again.")
+                    # Remove the user message from history since it failed
+                    st.session_state.chat_messages.pop()
+    
+    # Add a reset button at the bottom
+    if st.button("Reset Chat", key="reset_chat_interface"):
+        reset_chat()
         st.rerun()
 
 def display_vector_store_files(vector_store_id: str, selected_subject: str, selected_week: str):

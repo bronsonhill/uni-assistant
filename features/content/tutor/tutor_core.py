@@ -69,11 +69,13 @@ def is_valid_vector_store(vector_store_id: str) -> bool:
         # Skip checking if no vector store ID provided
         if not actual_id:
             print("Invalid vector store: No vector store ID provided")
+            st.error("No course materials selected. Please select a subject and week.")
             return False
             
         # Check if the ID format looks valid
         if not isinstance(actual_id, str):
             print(f"Invalid vector store ID type: {type(actual_id).__name__}, expected string")
+            st.error("Invalid course materials format. Please try refreshing the page.")
             return False
             
         if not actual_id.startswith("vs_"):
@@ -88,18 +90,30 @@ def is_valid_vector_store(vector_store_id: str) -> bool:
                 init_success = init_rag_manager(user_email)
                 if not init_success:
                     print("Unable to initialize RAG manager")
+                    st.error("Failed to initialize AI service. Please check your API key and try again.")
                     return False
             else:
                 print("No user email found in session state")
+                st.error("Please log in to use the Subject Tutor.")
                 return False
             
         # Try to list files in the vector store
         print(f"Checking vector store files for ID: {actual_id}")
-        files = st.session_state.rag_manager.list_vector_store_files(actual_id)
+        try:
+            files = st.session_state.rag_manager.list_vector_store_files(actual_id)
+        except Exception as e:
+            print(f"Error listing vector store files: {str(e)}")
+            st.error("Failed to access course materials. Please try refreshing the page.")
+            return False
         
         # Vector store is valid if it has at least one file
         is_valid = len(files) > 0
-        print(f"Vector store {actual_id} is valid: {is_valid} (contains {len(files)} files)")
+        if not is_valid:
+            print(f"Vector store {actual_id} is empty")
+            st.error("No course materials found. Please upload materials in the 'Add with AI' section first.")
+        else:
+            print(f"Vector store {actual_id} is valid: {is_valid} (contains {len(files)} files)")
+        
         return is_valid
         
     except Exception as e:
@@ -107,11 +121,13 @@ def is_valid_vector_store(vector_store_id: str) -> bool:
         # Try to give more specific error messages
         error_str = str(e).lower()
         if "not found" in error_str:
-            print("The vector store ID appears to be invalid or the store has been deleted")
+            st.error("The course materials could not be found. Please try refreshing the page.")
         elif "unauthorized" in error_str:
-            print("API authorization error. Check your API key and permissions")
+            st.error("Please check your API key and try again.")
         elif "timeout" in error_str or "connection" in error_str:
-            print("Network error when checking vector store. Check your connection")
+            st.error("Network error. Please check your connection and try again.")
+        else:
+            st.error(f"Error accessing course materials: {str(e)}")
         return False
 
 def create_assistant_for_chat(vector_store_id: str):

@@ -7,7 +7,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 from typing import Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 import altair as alt
@@ -74,7 +74,9 @@ def display_content_stats(stats: Dict[str, Any]) -> None:
     if stats["recent_additions"]:
         st.subheader("Recent Additions")
         for item in stats["recent_additions"]:
-            st.text(f"• {item['subject']} - Week {item['week']}: {item['question']}")
+            # Convert UTC datetime to local time for display
+            local_time = item["added_at"].astimezone()
+            st.text(f"• {item['subject']} - Week {item['week']}: {item['question']} ({local_time.strftime('%Y-%m-%d %H:%M')})")
     
     # Display questions by subject at the bottom
     if stats["questions_by_subject"]:
@@ -112,11 +114,12 @@ def display_practice_stats(stats: Dict[str, Any]) -> None:
         if recent_attempts:
             st.subheader("Practice Activity (Last 30 Days)")
             
-            # Group attempts by date
+            # Group attempts by date (in local timezone)
             attempts_by_date = {}
             for attempt in recent_attempts:
-                date = datetime.fromtimestamp(attempt["date"]).date()
-                attempts_by_date[date] = attempts_by_date.get(date, 0) + 1
+                # Convert UTC datetime to local date
+                local_date = attempt["date"].astimezone().date()
+                attempts_by_date[local_date] = attempts_by_date.get(local_date, 0) + 1
             
             # Create bar chart
             fig = go.Figure()
