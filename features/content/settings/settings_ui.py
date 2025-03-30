@@ -4,6 +4,8 @@ Settings UI module.
 This module handles the display and interaction of settings components.
 """
 import streamlit as st
+import numpy as np
+import plotly.graph_objects as go
 from typing import Dict
 from features.content.settings.settings_core import get_current_settings, save_settings
 
@@ -12,16 +14,16 @@ MEMORY_OPTIONS = {
     "You have poor memory and need to study a lot (0.12)": 0.12,
     "You have average memory and need to study moderately (0.07)": 0.07,
     "You have good memory and need to study moderately (0.03)": 0.03,
-    "You are a Study Legend and can memorize things with ease (recommended 0.01)": 0.01,
+    "You are a Study Legend (recommended 0.01)": 0.01,
     "Custom Value": None
 }
 
 # Predefined options for performance decay
 PERFORMANCE_OPTIONS = {
-    "Very Stable (0.05)": 0.05,
-    "Stable (0.1)": 0.1,
-    "Balanced (0.25)": 0.25,
-    "Quick Decay (0.5)": 0.5,
+    "Very careful (0.05)": 0.05,
+    "Somewhat careful (0.1)": 0.1,
+    "Meh (0.25)": 0.25,
+    "Careless (0.5)": 0.5,
     "Custom Value": None
 }
 
@@ -39,6 +41,68 @@ def get_closest_option(value: float, options: Dict[str, float]) -> str:
     closest_key = min(valid_options.items(), key=lambda x: abs(x[1] - value))[0]
     return closest_key
 
+def create_decay_visualization(decay_factor: float, forgetting_factor: float) -> None:
+    """Create a visualization of the decay curves over 30 days"""
+    days = np.arange(0, 31)
+    
+    # Calculate decay curves
+    # Care Factor (weight) decays from 1 to 0
+    care_factor_decay = np.exp(-decay_factor * days)
+    # Big Brain Factor (score) decays from 5 to 0
+    big_brain_decay = 5 * np.exp(-forgetting_factor * days)
+    
+    # Create the plot with secondary y-axis
+    fig = go.Figure()
+    
+    # Add Care Factor curve (weight)
+    fig.add_trace(go.Scatter(
+        x=days,
+        y=care_factor_decay,
+        name='Care Factor (Weight)',
+        line=dict(color='#1f77b4', width=2),
+        hovertemplate='Day: %{x}<br>Weight: %{y:.2f}<extra></extra>'
+    ))
+    
+    # Add Big Brain Factor curve (score)
+    fig.add_trace(go.Scatter(
+        x=days,
+        y=big_brain_decay,
+        name='Big Brain Factor (Score)',
+        line=dict(color='#ff7f0e', width=2),
+        yaxis='y2',
+        hovertemplate='Day: %{x}<br>Score: %{y:.2f}/5<extra></extra>'
+    ))
+    
+    # Update layout with secondary y-axis
+    fig.update_layout(
+        title='Score and Weight Decay Over Time',
+        xaxis_title='Days Since Last Practice',
+        yaxis=dict(
+            title='Weight (0-1)',
+            range=[0, 1],
+            side='left',
+            showgrid=True,
+            gridcolor='lightgrey'
+        ),
+        yaxis2=dict(
+            title='Score (0-5)',
+            range=[0, 5],
+            side='right',
+            overlaying='y',
+            showgrid=False
+        ),
+        hovermode='x unified',
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.8
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
 def display_score_settings(user_email: str) -> None:
     """Display the score calculation settings section"""
     st.subheader("Score Calculation Settings")
@@ -54,11 +118,11 @@ def display_score_settings(user_email: str) -> None:
     col1, col2 = st.columns(2)
 
     with col2:
-        st.markdown("#### Performance Decay Factor")
+        st.markdown("#### Care Factor")
         st.markdown("""
-        Controls how quickly older scores lose influence on your current score.
-        - Lower values (e.g., 0.05) = scores remain stable longer
-        - Higher values (e.g., 0.2) = scores decay more quickly
+        How confident do you want to be that you know the material?  
+        - Lower values (e.g., 0.05) = a higher score is harder to achieve
+        - Higher values (e.g., 0.2) = a higher score is easier to achieve
         """)
         
         # Find the closest predefined option for performance decay
@@ -68,7 +132,7 @@ def display_score_settings(user_email: str) -> None:
         )
         
         performance_choice = st.selectbox(
-            "Select Performance Decay",
+            "Select Care Factor",
             options=list(PERFORMANCE_OPTIONS.keys()),
             key="performance_choice",
             index=list(PERFORMANCE_OPTIONS.keys()).index(current_performance),
@@ -77,7 +141,7 @@ def display_score_settings(user_email: str) -> None:
         
         if PERFORMANCE_OPTIONS[performance_choice] is None:
             new_decay = st.number_input(
-                "Custom Performance Decay Factor (0.0-1.0)",
+                "Custom Care Factor (0.0-1.0)",
                 min_value=0.0, max_value=1.0,
                 value=float(current_settings["decay_factor"]),
                 step=0.01,
@@ -89,11 +153,11 @@ def display_score_settings(user_email: str) -> None:
             new_decay = PERFORMANCE_OPTIONS[performance_choice]
 
     with col1:
-        st.markdown("#### Forgetting Decay Factor")
+        st.markdown("#### Big Brain Factor")
         st.markdown("""
-        Controls how quickly your score decreases over time since last practiced.
-        - Lower values (e.g., 0.05) = your score decreases slowly
-        - Higher values (e.g., 0.2) = your score decreases quickly
+        How big is your brain? This controls how quickly your score decreases over time since last practiced, accounting for forgetting things over time.
+        - Lower values (e.g., 0.05) = you have a big brain and can remember things for a long time
+        - Higher values (e.g., 0.2) = your have a small brain and need to practice more often
         """)
         
         # Find the closest predefined option for memory setting
@@ -103,7 +167,7 @@ def display_score_settings(user_email: str) -> None:
         )
         
         memory_choice = st.selectbox(
-            "Select Memory Setting",
+            "Select Big Brain Factor",
             options=list(MEMORY_OPTIONS.keys()),
             key="memory_choice",
             index=list(MEMORY_OPTIONS.keys()).index(current_memory),
@@ -112,7 +176,7 @@ def display_score_settings(user_email: str) -> None:
         
         if MEMORY_OPTIONS[memory_choice] is None:
             new_forgetting = st.number_input(
-                "Custom Forgetting Decay Factor (0.0-1.0)",
+                "Custom Big Brain Factor (0.0-1.0)",
                 min_value=0.0, max_value=1.0,
                 value=float(current_settings["forgetting_decay_factor"]),
                 step=0.01,
@@ -126,6 +190,15 @@ def display_score_settings(user_email: str) -> None:
     # Save button
     if st.button("💾 Save Score Settings", key="save_score_settings"):
         handle_settings_save(user_email, new_decay, new_forgetting, current_settings)
+    
+    # Add visualization section
+    st.markdown("### Score Decay Visualization")
+    st.markdown("""
+    This graph shows how your scores will decay over time based on your current settings:
+    - **Care Factor** (blue): How quickly older performance scores lose influence
+    - **Big Brain Factor** (orange): How quickly your score decreases due to time since last practiced
+    """)
+    create_decay_visualization(new_decay, new_forgetting)
 
 def handle_settings_save(user_email: str, new_decay: float, new_forgetting: float, current_settings: Dict[str, float]) -> None:
     """Handle saving of new settings"""
