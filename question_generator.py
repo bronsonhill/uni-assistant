@@ -1,5 +1,7 @@
 import os
 import json
+import time
+import base64
 from typing import List, Dict, Any
 from openai import OpenAI
 
@@ -12,7 +14,7 @@ def generate_questions_from_file(
     existing_questions: List[Dict[str, Any]] = None
 ) -> List[Dict[str, str]]:
     """
-    Process uploaded file and generate questions using OpenAI's file upload capabilities.
+    Process uploaded file and generate questions using OpenAI's responses API.
     
     Parameters:
     - file_bytes: The bytes of the uploaded file
@@ -41,8 +43,8 @@ def generate_questions_from_file(
         existing_q_texts = [q["question"] for q in existing_questions]
     existing_qs_str = "\n".join([f"- {q}" for q in existing_q_texts])
     
-    # Determine file content type
-    content_type = "application/pdf" if file_type == "pdf" else "text/plain"
+    # Convert file bytes to base64
+    base64_string = base64.b64encode(file_bytes).decode("utf-8")
     
     # Construct system prompt
     system_prompt = """You are an expert teacher creating study questions for university students. 
@@ -65,8 +67,9 @@ IMPORTANT: Avoid duplicating these existing questions:
 """
     
     # Define the function for generating questions
-    functions = [
+    tools = [
         {
+            "type": "function",
             "name": "generate_study_questions",
             "description": "Generate study questions and answers based on document content",
             "parameters": {
@@ -97,23 +100,41 @@ IMPORTANT: Avoid duplicating these existing questions:
     ]
     
     try:
-        # Send request to OpenAI API with file attachment and function calling
-        response = client.chat.completions.create(
-            model="gpt-4o",  # Using a model that can process files
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": [
-                    {"type": "text", "text": user_prompt},
-                    {"type": "file_attachment", "file_bytes": file_bytes, "content_type": content_type}
-                ]}
+        # Send request to OpenAI API using responses endpoint
+        response = client.responses.create(
+            model="gpt-4o",
+            instructions=system_prompt,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_file",
+                            "filename": f"document.{file_type}",
+                            "file_data": f"data:application/{file_type};base64,{base64_string}"
+                        },
+                        {
+                            "type": "input_text",
+                            "text": user_prompt
+                        }
+                    ]
+                }
             ],
-            functions=functions,
-            function_call={"name": "generate_study_questions"},
-            temperature=0.7
+            tools=tools,
+            tool_choice="required",
         )
         
-        # Extract the function call arguments
-        function_args = json.loads(response.choices[0].message.function_call.arguments)
+        # Extract the function call arguments from the response
+        function_call = None
+        for output in response.output:
+            if output.type == "function_call":
+                function_call = output
+                break
+                
+        if not function_call:
+            raise ValueError("No function call found in the response")
+            
+        function_args = json.loads(function_call.arguments)
         questions = function_args.get("questions", [])
         
         # Validate and format the questions

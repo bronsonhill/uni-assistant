@@ -101,18 +101,33 @@ def record_login_if_needed(email):
     
     # Record login if this is a new login
     if is_new_login:
-        # Record the login in our database
-        user_data = users.record_login(email)
-        # Store the email we just recorded to avoid duplicate records
-        st.session_state.last_recorded_email = email
-        
-        # Show a welcome message if this is the first login for this user
-        if user_data.get("login_count", 0) <= 1:
-            st.session_state.show_welcome = True
-            st.session_state.welcome_email = email
+        try:
+            # Try MongoDB first if enabled
+            if users.USE_MONGODB:
+                import mongodb
+                mongodb.record_user_login(email)
+                # Get user data for login count check
+                user_data = mongodb.get_user(email)
+            else:
+                # Fall back to JSON storage
+                user_data = users.record_login(email)
             
-        return True
-        
+            # Store the email we just recorded to avoid duplicate records
+            st.session_state.last_recorded_email = email
+            
+            # Show a welcome message if this is the first login for this user
+            if user_data.get("login_count", 0) <= 1:
+                st.session_state.show_welcome = True
+                st.session_state.welcome_email = email
+                
+            return True
+        except Exception as e:
+            print(f"Error recording login: {e}")
+            # Fall back to JSON storage if MongoDB fails
+            user_data = users.record_login(email)
+            st.session_state.last_recorded_email = email
+            return True
+            
     return False
 
 def store_credentials_in_browser(email):

@@ -199,3 +199,42 @@ def update_user_score_settings(email: str, settings: Dict[str, float]) -> bool:
         return False
         
     return result.modified_count > 0 or result.matched_count > 0 # Return True if updated or already matched
+
+
+def record_user_login(email: str) -> None:
+    """
+    Record a user login and ensure the user exists in the database.
+    If the user doesn't exist, they will be created with default settings.
+    
+    Args:
+        email: User's email address
+    """
+    collection = get_collection(USERS_COLLECTION)
+    
+    # Check if user exists
+    user = collection.find_one({"email": email})
+    
+    if not user:
+        # Create new user with default settings if they don't exist
+        user_data = {
+            "email": email,
+            "score_settings": {
+                "decay_factor": DEFAULT_DECAY_FACTOR,
+                "forgetting_decay_factor": DEFAULT_FORGETTING_DECAY_FACTOR
+            },
+            "created_at": int(time.time()),
+            "updated_at": int(time.time()),
+            "last_login": int(time.time())
+        }
+        collection.insert_one(user_data)
+    else:
+        # Update last login time for existing user
+        collection.update_one(
+            {"email": email},
+            {
+                "$set": {
+                    "last_login": int(time.time()),
+                    "updated_at": int(time.time())
+                }
+            }
+        )

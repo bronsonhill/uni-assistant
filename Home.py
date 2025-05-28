@@ -43,20 +43,32 @@ def sanitize_data_vector_store_ids(data: Dict) -> Dict:
     if not data:
         return data
         
-    # Initialize the RAG manager to use its sanitization method
-    from rag_manager import RAGManager
-    rag_manager = RAGManager()
+    # Process all subjects
+    for subject in list(data.keys()):
+        if not isinstance(data[subject], dict):
+            continue
+            
+        if "vector_store_metadata" not in data[subject]:
+            continue
+            
+        metadata = data[subject]["vector_store_metadata"]
+        
+        # Process all weeks
+        for week in list(metadata.keys()):
+            vector_store_data = metadata[week]
+            
+            # Handle both string IDs and dictionary metadata
+            if isinstance(vector_store_data, dict) and "id" in vector_store_data:
+                vector_store_id = vector_store_data["id"]
+            else:
+                vector_store_id = vector_store_data
+                
+            # Validate the ID length
+            if vector_store_id and len(vector_store_id) > 64:
+                print(f"Removing invalid vector store ID for {subject} week {week}: {len(vector_store_id)} chars")
+                del metadata[week]
     
-    # Use the RAG manager's sanitize method which returns modified data
-    sanitized_data = rag_manager.sanitize_vector_store_ids(data)
-    
-    # Check if data was modified
-    if sanitized_data != data:
-        print("Vector store IDs were sanitized. Saving updated data.")
-        # Save the sanitized data
-        save_data(sanitized_data)
-    
-    return sanitized_data
+    return data
 
 def init_rag_manager(email: str = None):
     """
@@ -68,10 +80,29 @@ def init_rag_manager(email: str = None):
     Returns:
         Initialized RAGManager instance with loaded vector stores
     """
-    from rag_manager import RAGManager
+    from services.rag_manager import RAGManager
+    from services.openai_service import OpenAIService
+    from services.vector_store_service import VectorStoreService
     
-    # Create the RAG manager instance
-    rag_manager = RAGManager()
+    # Get API key
+    api_key = None
+    try:
+        # First check Streamlit secrets
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except (KeyError, AttributeError):
+        # Fallback to environment variable
+        api_key = os.getenv("OPENAI_API_KEY")
+        
+    if not api_key:
+        st.error("OpenAI API key not found. Please set it in your environment variables or contact support.")
+        return None
+    
+    # Initialize services
+    openai_service = OpenAIService(api_key=api_key)
+    vector_store_service = VectorStoreService(openai_service.client)
+    
+    # Create the RAG manager instance with required services
+    rag_manager = RAGManager(openai_service, vector_store_service)
     
     # Load saved vector stores from the data
     data = load_data(email)
@@ -79,8 +110,18 @@ def init_rag_manager(email: str = None):
     # Sanitize vector store IDs in the data
     data = sanitize_data_vector_store_ids(data)
     
-    # Load the sanitized data
-    rag_manager.load_vector_stores_from_data(data, email)
+    # Initialize vector stores from data
+    if data:
+        for subject, subject_data in data.items():
+            if isinstance(subject_data, dict) and "vector_store_metadata" in subject_data:
+                for week, vector_store_data in subject_data["vector_store_metadata"].items():
+                    try:
+                        # Get or create vector store
+                        vector_store = vector_store_service.create_vector_store(subject, week, email)
+                        if vector_store:
+                            print(f"Initialized vector store for {subject} week {week}")
+                    except Exception as e:
+                        print(f"Error initializing vector store for {subject} week {week}: {e}")
     
     return rag_manager
 
@@ -351,22 +392,34 @@ def calculate_weighted_score(scores, last_practiced=None, decay_factor=0.1, forg
     # Return the final adjusted score (or the weighted_score if no last_practiced)
     return adjusted_score
 
-def force_cleanup_vector_store_data(email: str = None):
-    """
-    Force a cleanup of all vector store data to ensure compliance with OpenAI's limits.
+def force_cleanup_vector_store_data(user_email):
+    """Force cleanup of vector store data"""
+    from services.rag_manager import RAGManager
+    from services.openai_service import OpenAIService
+    from services.vector_store_service import VectorStoreService
     
-    Args:
-        email: Optional user email to filter data by ownership
+    # Get API key
+    api_key = None
+    try:
+        # First check Streamlit secrets
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except (KeyError, AttributeError):
+        # Fallback to environment variable
+        api_key = os.getenv("OPENAI_API_KEY")
         
-    Returns:
-        Number of items cleaned up
-    """
-    # Load current data
-    data = load_data(email)
+    if not api_key:
+        st.error("OpenAI API key not found. Please set it in your environment variables or contact support.")
+        return 0
     
-    # Initialize the RAG manager for sanitization
-    from rag_manager import RAGManager
-    rag_manager = RAGManager()
+    # Initialize services
+    openai_service = OpenAIService(api_key=api_key)
+    vector_store_service = VectorStoreService(openai_service.client)
+    
+    # Create RAG manager with required services
+    rag_manager = RAGManager(openai_service, vector_store_service)
+    
+    # Load current data
+    data = load_data(user_email)
     
     cleanup_count = 0
     
@@ -399,7 +452,7 @@ def force_cleanup_vector_store_data(email: str = None):
     # Save the cleaned data
     if cleanup_count > 0:
         print(f"Removed {cleanup_count} invalid vector store IDs. Saving data...")
-        save_data(data, email)
+        save_data(data, user_email)
         
     return cleanup_count
 
@@ -572,8 +625,29 @@ def display_user_stats():
             with col2:
                 if st.button("Check Vector Store ID Compliance"):
                     with st.spinner("Checking vector store IDs..."):
-                        from rag_manager import RAGManager
-                        rag_manager = RAGManager()
+                        from services.rag_manager import RAGManager
+                        from services.openai_service import OpenAIService
+                        from services.vector_store_service import VectorStoreService
+                        
+                        # Get API key
+                        api_key = None
+                        try:
+                            # First check Streamlit secrets
+                            api_key = st.secrets["OPENAI_API_KEY"]
+                        except (KeyError, AttributeError):
+                            # Fallback to environment variable
+                            api_key = os.getenv("OPENAI_API_KEY")
+                            
+                        if not api_key:
+                            st.error("OpenAI API key not found. Please set it in your environment variables or contact support.")
+                            return
+                        
+                        # Initialize services
+                        openai_service = OpenAIService(api_key=api_key)
+                        vector_store_service = VectorStoreService(openai_service.client)
+                        
+                        # Create RAG manager with required services
+                        rag_manager = RAGManager(openai_service, vector_store_service)
                         rag_manager.check_vector_store_id_compliance()
 
 # Main app

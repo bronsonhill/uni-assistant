@@ -16,19 +16,16 @@ from features.content.base_content import show_preview_mode
 
 # Import from refactored add_ai modules
 from features.content.add_ai.add_ai_core_refactored import (
-    init_session_state,
-    init_rag_manager
+    init_session_state
 )
 from features.content.add_ai.add_ai_ui_refactored import (
     display_file_upload,
     display_question_review,
-    display_kb_management,
     display_error_message
 )
 from features.content.add_ai.add_ai_demo import (
     show_premium_benefits,
-    show_demo_content,
-    show_kb_demo_content
+    show_demo_content
 )
 
 def run():
@@ -47,24 +44,14 @@ def run():
             "AI Question Generator",
             """
             Upload your lecture notes or course materials, and let AI generate study questions for you.
-            The system builds a knowledge base for each subject and week, allowing for more relevant questions.
+            The system will analyze your content and create relevant study questions to help you learn.
             
-            Files you upload will also be available to the assistant chat bot, making it more knowledgeable
-            and tailored to your subject content.
+            You can also provide custom prompts to guide the question generation process.
             """
         )
         
-        # Create tabs for demo content
-        demo_tab1, demo_tab2 = st.tabs(["Generate Questions", "Manage Knowledge Base"])
-        
-        with demo_tab1:
-            # Show demo content for questions generation
-            show_demo_content()
-        
-        with demo_tab2:
-            # Show demo content for knowledge base management
-            show_kb_demo_content()
-            
+        # Show demo content
+        show_demo_content()
         return
     
     if not is_subscribed:
@@ -77,16 +64,8 @@ def run():
         st.warning("This is a premium feature that requires a subscription.")
         show_premium_benefits()
         
-        # Create tabs for demo content
-        demo_tab1, demo_tab2 = st.tabs(["Generate Questions", "Manage Knowledge Base"])
-        
-        with demo_tab1:
-            # Show demo content for questions generation
-            show_demo_content()
-        
-        with demo_tab2:
-            # Show demo content for knowledge base management
-            show_kb_demo_content()
+        # Show demo content
+        show_demo_content()
         
         # Add prominent upgrade button
         st.button("Upgrade to Premium", type="primary", disabled=True)
@@ -108,27 +87,11 @@ def run():
     # Initialize session state variables
     init_session_state()
     
-    # Initialize the RAG manager
-    rag_manager_ok = init_rag_manager(user_email)
+    # File upload interface
+    display_file_upload(is_subscribed)
     
-    if not rag_manager_ok:
-        display_error_message("Could not initialize the RAG Manager. Make sure you have the required dependencies installed.")
-        st.info("Run: `pip install sentence-transformers chromadb pdfplumber`")
-        st.stop()
-    
-    # Create tabs for the different sections
-    tab1, tab2 = st.tabs(["Generate Questions", "Manage Knowledge Base"])
-    
-    with tab1:
-        # File upload interface
-        display_file_upload(is_subscribed)
-        
-        # Question review and selection
-        display_question_review()
-    
-    with tab2:
-        # Knowledge base management
-        display_kb_management()
+    # Question review and selection
+    display_question_review()
 
 if __name__ == "__main__":
     run()
