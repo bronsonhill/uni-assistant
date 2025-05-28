@@ -12,7 +12,7 @@ from st_paywall import add_auth
 from features.content.practice.practice_core import (
     get_score_emoji, get_cached_vector_store_id, reset_question_state,
     save_score_with_answer, save_ai_feedback_to_data, go_to_next_question,
-    save_data, update_question_score  # Import save_data and update_question_score from practice_core
+    save_data, update_question_score, get_random_question_index, build_cached_queue, build_queue  # Import additional functions from practice_core
 )
 
 # Import from base and external modules
@@ -191,7 +191,7 @@ def display_knowledge_level_selector():
 
 def display_practice_navigation(current_idx: int, queue_length: int):
     """Display practice navigation buttons and handle navigation logic"""
-    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
     
     with col1:
         button_row1 = st.columns([1, 1])
@@ -212,7 +212,7 @@ def display_practice_navigation(current_idx: int, queue_length: int):
     with col3:
         next_disabled = current_idx == queue_length - 1
         if st.button("Next", disabled=next_disabled, use_container_width=True):
-            st.session_state.current_question_idx += 1
+            go_to_next_question()
             reset_question_state()
             st.rerun()
     
@@ -220,11 +220,23 @@ def display_practice_navigation(current_idx: int, queue_length: int):
         # Button for random jump
         if queue_length > 1:
             if st.button("Random Question", use_container_width=True):
-                import random
-                new_idx = current_idx
-                while new_idx == current_idx:
-                    new_idx = random.randint(0, queue_length - 1)
+                from features.content.practice.practice_core import get_random_question_index
+                new_idx = get_random_question_index(current_idx, queue_length)
                 st.session_state.current_question_idx = new_idx
+                reset_question_state()
+                st.rerun()
+    
+    with col5:
+        # Reshuffle button (only show in random mode)
+        if st.session_state.get('practice_order') == "Random" and queue_length > 1:
+            if st.button("🔄 Reshuffle", use_container_width=True, help="Reshuffle the question queue"):
+                # Clear the cache to force a new random order
+                build_cached_queue.clear()
+                # Rebuild the queue
+                questions_queue, _, _ = build_queue()
+                st.session_state.questions_queue = questions_queue
+                # Get a new random starting point
+                st.session_state.current_question_idx = get_random_question_index(-1, queue_length)
                 reset_question_state()
                 st.rerun()
     

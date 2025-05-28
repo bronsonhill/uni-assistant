@@ -164,8 +164,9 @@ def build_cached_queue(data, selected_subject, selected_week, practice_order, mi
     
     # Apply order modes
     if practice_order == "Random":
-        # Use a deterministic random seed based on the current date
-        random_seed = hash(datetime.now().strftime("%Y-%m-%d"))
+        # Use a more unique random seed based on timestamp and user
+        user_email = get_user_email()
+        random_seed = hash(f"{datetime.now().timestamp()}_{user_email}")
         random.Random(random_seed).shuffle(questions_queue)
     elif practice_order == "Needs Practice":
         # Sort by weighted score (lowest first) and then by last practiced time (oldest first)
@@ -361,6 +362,15 @@ def start_practice():
     st.session_state.current_question_idx = 0
     reset_question_state()
 
+def get_random_question_index(current_idx: int, queue_length: int) -> int:
+    """Get a truly random question index that's different from the current one"""
+    if queue_length <= 1:
+        return 0
+    
+    # Generate a list of possible indices excluding the current one
+    possible_indices = [i for i in range(queue_length) if i != current_idx]
+    return random.choice(possible_indices)
+
 def build_queue():
     """Build queue using the cached function with current session state"""
     try:
@@ -395,8 +405,15 @@ def go_to_next_question():
     st.session_state.feedback = None
     st.session_state.chat_messages = []
     
-    # Move to next question
-    st.session_state.current_question_idx += 1
+    # If in random mode, get a truly random next question
+    if st.session_state.get('practice_order') == "Random":
+        st.session_state.current_question_idx = get_random_question_index(
+            st.session_state.current_question_idx,
+            len(st.session_state.questions_queue)
+        )
+    else:
+        # Move to next question sequentially
+        st.session_state.current_question_idx += 1
     
     # Check if we've reached the end
     if st.session_state.current_question_idx >= len(st.session_state.questions_queue):
