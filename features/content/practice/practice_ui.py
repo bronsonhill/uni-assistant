@@ -104,8 +104,12 @@ def display_chat_interface(current_q: Dict, user_answer: str, feedback: Dict):
     # Create a unique key for chat input based on question
     chat_input_key = f"chat_input_{current_q['subject']}_{current_q['week']}_{current_q['question_idx']}"
     
-    # First display all messages in the container
+    # Get user input first
+    user_message = st.chat_input("Ask a question about this concept...", key=chat_input_key)
+    
+    # Display all messages and handle new messages in the container
     with chat_message_container:
+        # Display existing messages
         for msg in st.session_state.chat_messages:
             with st.chat_message(msg["role"]):
                 st.write(msg["content"])
@@ -153,9 +157,6 @@ def display_chat_interface(current_q: Dict, user_answer: str, feedback: Dict):
             
             # Rerun to reset the input field and update the UI
             st.rerun()
-    
-    # Define the chat input after the messages container (this will appear at the bottom)
-    user_message = st.chat_input("Ask a question about this concept...", key=chat_input_key)
 
 def display_knowledge_level_selector():
     """Display and handle the knowledge level filter selector"""
@@ -576,48 +577,70 @@ def display_practice_question(question_data, is_authenticated, user_email):
                     
                 st.session_state.show_answer = True
                 
-                # Generate AI feedback
-                with st.spinner("Analyzing your answer..."):
-                    try:
-                        feedback_result = evaluate_answer(
-                            question_text,
-                            user_answer,
-                            answer_text
-                        )
-                        
-                        # Store feedback in session state
-                        st.session_state.feedback = feedback_result
-                        
-                        # Clear chat messages when new feedback is generated
-                        st.session_state.chat_messages = []
-                        
-                        # Save feedback to MongoDB if user is logged in
-                        if user_email:
-                            try:
-                                from mongodb.queue_cards import save_ai_feedback
-                                # Based on the error, the function expects only 3 arguments
-                                save_ai_feedback(
-                                    user_email,
-                                    {
-                                        "subject": subject,
-                                        "week": week,
-                                        "idx": idx,
-                                        "question_idx": idx,  # Add question_idx field explicitly
-                                        "question": question_text,
-                                        "answer": answer_text,
-                                        "user_answer": user_answer
-                                    },
-                                    feedback_result
-                                )
-                            except Exception as e:
-                                # Log but don't block if feedback saving fails
-                                print(f"Error saving feedback: {str(e)}")
-                    except Exception as e:
-                        st.error(f"Error generating feedback: {str(e)}")
-                        st.session_state.feedback = {
-                            "score": 0,
-                            "explanation": "Could not generate feedback. Please try again."
-                        }
+                # Check if user provided an answer
+                if not user_answer or user_answer.strip() == "":
+                    # Set default feedback for empty answer
+                    st.session_state.feedback = {
+                        "score": 0,
+                        "feedback": "No answer provided. Please provide your answer before checking with AI.",
+                        "hint": "Try to write down your thoughts about the question, even if you're not completely sure."
+                    }
+                else:
+                    # Generate AI feedback
+                    with st.spinner("Analyzing your answer..."):
+                        try:
+                            feedback_result = evaluate_answer(
+                                question_text,
+                                user_answer,
+                                answer_text
+                            )
+                            
+                            # Store feedback in session state
+                            st.session_state.feedback = feedback_result
+                            
+                            # Clear chat messages when new feedback is generated
+                            st.session_state.chat_messages = []
+                            
+                            # Save answer and feedback together if user is authenticated
+                            if is_authenticated and user_email:
+                                try:
+                                    # Save the answer with the AI-generated score
+                                    st.session_state.data = save_score_with_answer(
+                                        st.session_state.data,
+                                        {
+                                            "subject": subject,
+                                            "week": week,
+                                            "question_idx": idx
+                                        },
+                                        feedback_result.get("score", 0),  # Use AI-generated score
+                                        user_answer,
+                                        user_email
+                                    )
+                                    
+                                    # Save the AI feedback
+                                    from mongodb.queue_cards import save_ai_feedback
+                                    save_ai_feedback(
+                                        user_email,
+                                        {
+                                            "subject": subject,
+                                            "week": week,
+                                            "idx": idx,
+                                            "question_idx": idx,
+                                            "question": question_text,
+                                            "answer": answer_text,
+                                            "user_answer": user_answer
+                                        },
+                                        feedback_result
+                                    )
+                                    print("Answer and feedback saved successfully")
+                                except Exception as e:
+                                    print(f"Error saving answer and feedback: {str(e)}")
+                        except Exception as e:
+                            st.error(f"Error generating feedback: {str(e)}")
+                            st.session_state.feedback = {
+                                "score": 0,
+                                "explanation": "Could not generate feedback. Please try again."
+                            }
                 
                 # Rerun to show feedback
                 st.rerun()
@@ -693,6 +716,15 @@ def display_practice_question(question_data, is_authenticated, user_email):
                 if hint:
                     st.markdown(f"**Hint:** {hint}")
                 
+                # Add retry button
+                if st.button("🔄 Retry Question", use_container_width=True):
+                    # Reset the question state
+                    st.session_state.user_answer = ""
+                    st.session_state.feedback = None
+                    st.session_state.show_answer = False
+                    st.session_state.chat_messages = []
+                    st.rerun()
+                
                 # Only show self-rating if authenticated
                 if is_authenticated:
                     # Self-rating section
@@ -714,51 +746,68 @@ def display_practice_question(question_data, is_authenticated, user_email):
                     st.markdown("---")
                     st.markdown("### Chat with AI about this question")
                     
-                    # Display previous chat messages
-                    for message in st.session_state.chat_messages:
-                        role = message["role"]
-                        content = message["content"]
-                        
-                        if role == "user":
-                            st.chat_message("user").write(content)
-                        else:
-                            st.chat_message("assistant").write(content)
+                    # Create a container for the entire chat interface
+                    chat_interface_container = st.container()
                     
-                    # Chat input
-                    chat_input = st.chat_input("Ask a question about this topic...")
-                    if chat_input:
-                        # Add user message to chat history
-                        st.session_state.chat_messages.append({
-                            "role": "user",
-                            "content": chat_input
-                        })
+                    with chat_interface_container:
+                        # Create a container for chat messages with a fixed height
+                        chat_messages_container = st.container(height=400)
                         
-                        # Display user message
-                        st.chat_message("user").write(chat_input)
+                        # Create a placeholder for the chat input
+                        chat_input_placeholder = st.empty()
                         
-                        # Get AI response
-                        with st.spinner("AI is thinking..."):
-                            try:
-                                ai_response = chat_about_question(
-                                    question_text,
-                                    answer_text,
-                                    user_answer,
-                                    st.session_state.feedback,  # Use the feedback dict, not chat_input
-                                    subject,
-                                    week,
-                                    chat_messages=st.session_state.chat_messages  # Use existing chat history
-                                )
+                        with chat_messages_container:
+                            # Display previous chat messages
+                            for message in st.session_state.chat_messages:
+                                role = message["role"]
+                                content = message["content"]
+                                
+                                if role == "user":
+                                    st.chat_message("user").write(content)
+                                else:
+                                    st.chat_message("assistant").write(content)
+                        
+                        # Chat input at the bottom of the chat interface container
+                        chat_input = chat_input_placeholder.chat_input("Ask a question about this topic...")
+                        
+                        if chat_input:
+                            # Add user message to chat history
+                            st.session_state.chat_messages.append({
+                                "role": "user",
+                                "content": chat_input
+                            })
+                            
+                            # Immediately display the user's message
+                            with chat_messages_container:
+                                st.chat_message("user").write(chat_input)
+                                
+                                # Stream the AI response as a new assistant message
+                                with st.chat_message("assistant"):
+                                    message_placeholder = st.empty()
+                                    full_response = ""
+                                    
+                                    def stream_handler(content):
+                                        nonlocal full_response
+                                        full_response += content
+                                        message_placeholder.markdown(full_response + "▌")
+                                    
+                                    ai_response = chat_about_question(
+                                        question_text,
+                                        answer_text,
+                                        user_answer,
+                                        st.session_state.feedback,
+                                        subject,
+                                        week,
+                                        chat_messages=st.session_state.chat_messages,
+                                        stream_handler=stream_handler
+                                    )
+                                    message_placeholder.markdown(full_response)
                                 
                                 # Add AI response to chat history
                                 st.session_state.chat_messages.append({
                                     "role": "assistant",
-                                    "content": ai_response
+                                    "content": full_response
                                 })
-                                
-                                # Display AI response
-                                st.chat_message("assistant").write(ai_response)
-                            except Exception as e:
-                                st.error(f"Error generating response: {str(e)}")
                     
                     # Add Show Attempts History button after chat
                     st.markdown("---")
@@ -776,8 +825,8 @@ def display_practice_question(question_data, is_authenticated, user_email):
                     if st.session_state.show_attempts:
                         with st.container(border=True):
                             if subject in st.session_state.data and week in st.session_state.data[subject] and idx < len(st.session_state.data[subject][week]):
-                                question_data = st.session_state.data[subject][week][idx]
-                                scores = question_data.get("scores", [])
+                                question_data_from_state = st.session_state.data[subject][week][idx]
+                                scores = question_data_from_state.get("scores", [])
                                 
                                 if scores:
                                     st.markdown("### Attempt History")
@@ -819,3 +868,16 @@ def display_practice_question(question_data, is_authenticated, user_email):
             else:
                 if user_email:  # Only show rating if user is logged in
                     display_self_rating_buttons(question_data, user_answer, user_email)
+    
+    # Return the question data for chat processing
+    return {
+        "question_text": question_text,
+        "answer_text": answer_text,
+        "user_answer": user_answer,
+        "subject": subject,
+        "week": week
+    }
+
+def handle_chat_input(question_info: Dict, is_authenticated: bool):
+    """This function is no longer needed as chat input is now handled within the display_practice_question function"""
+    pass

@@ -22,7 +22,8 @@ from features.content.practice.practice_core import (
     reset_practice,
     start_practice,
     build_queue,
-    go_to_next_question
+    go_to_next_question,
+    load_data
 )
 from features.content.practice.practice_ui import (
     display_setup_screen,
