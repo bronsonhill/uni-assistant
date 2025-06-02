@@ -71,110 +71,25 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
     st.session_state.num_questions = num_questions
     
     try:
-        # If no file is uploaded but custom text is provided, generate directly from text
-        if not uploaded_file and st.session_state.custom_questions.strip():
-            # Initialize OpenAI client
-            client = setup_openai_client()
-            if not client:
-                st.session_state.api_error = "Could not initialize OpenAI client."
-                st.session_state.generation_in_progress = False
-                return []
-            
-            # Generate questions from custom text using the responses API
-            response = client.responses.create(
-                model="gpt-4o",
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": f"Generate {num_questions} questions about {subject} week {week}. {st.session_state.custom_questions}"
-                            }
-                        ]
-                    }
-                ]
-            )
-            
-            # Process the response into questions
-            questions = []
-            content = response.choices[0].message.content
-            # Split content into question-answer pairs
-            qa_pairs = content.split("\n\n")
-            for pair in qa_pairs:
-                if "Question:" in pair and "Answer:" in pair:
-                    q, a = pair.split("Answer:", 1)
-                    questions.append({
-                        "question": q.replace("Question:", "").strip(),
-                        "answer": a.strip()
-                    })
-            
-            return questions[:num_questions]
+        # Import the core functionality
+        from features.content.add_ai.add_ai_core_refactored import process_uploaded_file as core_process_file
         
-        # If no file is uploaded and no custom text, return empty list
-        if not uploaded_file:
-            st.session_state.api_error = "Please upload a file or provide custom text to generate questions."
-            st.session_state.generation_in_progress = False
-            return []
+        # Call the core function with UI-specific parameters
+        questions = core_process_file(
+            uploaded_file=uploaded_file,
+            subject=subject,
+            week=week,
+            user_email=user_email,
+            num_questions=num_questions,
+            custom_text=st.session_state.custom_questions
+        )
         
-        # Handle uploaded file
-        if isinstance(uploaded_file, list):
-            if not uploaded_file:  # Empty list
-                st.session_state.api_error = "No file was uploaded."
-                st.session_state.generation_in_progress = False
-                return []
-            file_to_process = uploaded_file[0]
-        else:
-            file_to_process = uploaded_file
-            
-        # Validate file object
-        if not hasattr(file_to_process, 'name'):
-            st.session_state.api_error = "Invalid file object."
-            st.session_state.generation_in_progress = False
-            return []
-            
-        # Get file info
-        file_name = file_to_process.name
-        file_type = file_name.split('.')[-1].lower() if '.' in file_name else ''
+        return questions
         
-        # Validate file type
-        if not file_type or file_type not in ["pdf", "txt"]:
-            st.session_state.api_error = "Only PDF and TXT files are supported at this time. Please ensure your file has a .pdf or .txt extension."
-            st.session_state.generation_in_progress = False
-            return []
-        
-        # Create a temporary directory if it doesn't exist
-        temp_dir = os.path.join(os.path.dirname(__file__), "temp")
-        os.makedirs(temp_dir, exist_ok=True)
-        
-        # Save the file to disk temporarily
-        file_path = os.path.join(temp_dir, file_name)
-        with open(file_path, "wb") as f:
-            f.write(file_to_process.getvalue())
-        
-        try:
-            # Read the file as bytes
-            with open(file_path, "rb") as f:
-                file_bytes = f.read()
-            
-            # Generate questions using the new question generator
-            questions = generate_questions_from_file(
-                file_bytes=file_bytes,
-                file_type=file_type,
-                subject=subject,
-                week=str(week),
-                num_questions=num_questions
-            )
-            
-            return questions
-            
-        finally:
-            # Clean up the temporary file
-            try:
-                os.remove(file_path)
-            except:
-                pass
-        
+    except ValueError as e:
+        st.session_state.api_error = str(e)
+        st.session_state.generation_in_progress = False
+        return []
     except Exception as e:
         error_msg = f"Error processing file: {str(e)}"
         logger.error(error_msg)

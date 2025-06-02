@@ -11,7 +11,8 @@ def generate_questions_from_file(
     subject: str, 
     week: str, 
     num_questions: int,
-    existing_questions: List[Dict[str, Any]] = None
+    existing_questions: List[Dict[str, Any]] = None,
+    custom_prompt: str = None
 ) -> List[Dict[str, str]]:
     """
     Process uploaded file and generate questions using OpenAI's responses API.
@@ -23,6 +24,7 @@ def generate_questions_from_file(
     - week: The week number
     - num_questions: How many questions to generate
     - existing_questions: List of existing questions to avoid duplication
+    - custom_prompt: Optional custom prompt to guide question generation
     
     Returns:
     - List of generated question-answer pairs
@@ -58,6 +60,10 @@ Each question should have a detailed answer suitable for studying.
 
 Make sure the questions cover key concepts from the document and are varied in difficulty.
 """
+    
+    # Add custom prompt if provided
+    if custom_prompt:
+        user_prompt += f"\n\n{custom_prompt}"
     
     # Add existing questions to avoid duplication if there are any
     if existing_q_texts:

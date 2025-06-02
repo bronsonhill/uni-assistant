@@ -40,40 +40,83 @@ def init_session_state():
     if "file_uploaded" not in st.session_state:
         st.session_state.file_uploaded = False
 
-def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: str):
+def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: str, num_questions: int = 5, custom_text: str = None):
     """
     Process the uploaded file and generate questions
     
     Args:
-        uploaded_file: The streamlit uploaded file object
+        uploaded_file: The streamlit uploaded file object (can be None if using custom text)
         subject: The subject for the questions
         week: The week number for the questions
         user_email: The user's email address
+        num_questions: Number of questions to generate (default: 5)
+        custom_text: Optional custom text to generate questions from or specific topics/questions to focus on
     
     Returns:
         List of generated questions
     """
-    st.session_state.generation_in_progress = True
-    st.session_state.api_error = None
-    
     try:
-        # Handle uploaded file - support multiple files or single file
+        # If no file is uploaded but custom text is provided, generate directly from text
+        if not uploaded_file and custom_text and custom_text.strip():
+            # Initialize OpenAI client
+            client = setup_openai_client()
+            if not client:
+                raise ValueError("Could not initialize OpenAI client.")
+            
+            # Generate questions from custom text using the responses API
+            response = client.responses.create(
+                model="gpt-4o",
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": f"Generate {num_questions} questions about {subject} week {week}. Focus on these specific topics/questions: {custom_text}"
+                            }
+                        ]
+                    }
+                ]
+            )
+            
+            # Process the response into questions
+            questions = []
+            content = response.choices[0].message.content
+            # Split content into question-answer pairs
+            qa_pairs = content.split("\n\n")
+            for pair in qa_pairs:
+                if "Question:" in pair and "Answer:" in pair:
+                    q, a = pair.split("Answer:", 1)
+                    questions.append({
+                        "question": q.replace("Question:", "").strip(),
+                        "answer": a.strip()
+                    })
+            
+            return questions[:num_questions]
+        
+        # If no file is uploaded and no custom text, return empty list
+        if not uploaded_file:
+            raise ValueError("Please upload a file or provide custom text to generate questions.")
+        
+        # Handle uploaded file
         if isinstance(uploaded_file, list):
-            # Multiple files uploaded
-            file_to_process = uploaded_file[0]  # Process the first file for now
+            if not uploaded_file:  # Empty list
+                raise ValueError("No file was uploaded.")
+            file_to_process = uploaded_file[0]
         else:
-            # Single file uploaded
             file_to_process = uploaded_file
+            
+        # Validate file object
+        if not hasattr(file_to_process, 'name'):
+            raise ValueError("Invalid file object.")
             
         # Get file info
         file_name = file_to_process.name
-        file_type = file_name.split('.')[-1].lower()
+        file_type = file_name.split('.')[-1].lower() if '.' in file_name else ''
         
         # Validate file type
-        if file_type not in ["pdf", "txt"]:
-            st.session_state.api_error = "Only PDF and TXT files are supported at this time."
-            st.session_state.generation_in_progress = False
-            return []
+        if not file_type or file_type not in ["pdf", "txt"]:
+            raise ValueError("Only PDF and TXT files are supported at this time. Please ensure your file has a .pdf or .txt extension.")
         
         # Create a temporary directory if it doesn't exist
         temp_dir = os.path.join(os.path.dirname(__file__), "temp")
@@ -89,13 +132,19 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
             with open(file_path, "rb") as f:
                 file_bytes = f.read()
             
+            # Prepare the prompt with custom text if provided
+            prompt = f"Generate {num_questions} questions about {subject} week {week}"
+            if custom_text and custom_text.strip():
+                prompt += f". Focus on these specific topics/questions: {custom_text}"
+            
             # Generate questions using the new question generator
             questions = generate_questions_from_file(
                 file_bytes=file_bytes,
                 file_type=file_type,
                 subject=subject,
                 week=str(week),
-                num_questions=5
+                num_questions=num_questions,
+                custom_prompt=prompt
             )
             
             return questions
@@ -108,10 +157,7 @@ def process_uploaded_file(uploaded_file, subject: str, week: int, user_email: st
                 pass
     
     except Exception as e:
-        print(f"Error processing file: {e}")
-        st.session_state.api_error = f"An error occurred: {str(e)}"
-        st.session_state.generation_in_progress = False
-        return []
+        raise ValueError(f"Error processing file: {str(e)}")
 
 def generate_questions_without_upload(subject: str, week: int, user_email: str):
     """
