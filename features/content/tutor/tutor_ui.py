@@ -25,6 +25,9 @@ from features.content.tutor.vector_store_manager import extract_vector_store_id
 # Import RAG manager initialization
 from features.content.tutor import init_rag_manager
 
+# Import feature setup
+from features.content.shared.feature_setup import setup_feature
+
 def display_subject_selection():
     """
     Display subject and week selection UI
@@ -483,3 +486,39 @@ def _display_vector_store_debug_info():
     
     # Add a separator
     st.sidebar.markdown("---") 
+
+def render():
+    """Render the subject tutor page content."""
+    # Set up the page with standard configuration
+    # This is a premium feature where we don't need to display subscription status in the feature file
+    # (it's handled in the content file)
+    setup_feature(display_subscription=False, required=False)
+    
+    st.title("💬 Subject Tutor")
+    
+    # Add your subject tutor page content here
+    st.subheader("Chat with your AI Study Buddy")
+    
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
+    # Display chat messages
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    
+    # Chat input
+    if prompt := st.chat_input("Ask your study buddy a question"):
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Display user message
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        # Display assistant response
+        with st.chat_message("assistant"):
+            response = "I'm your AI study buddy! How can I help you today?"
+            st.markdown(response)
+            st.session_state.messages.append({"role": "assistant", "content": response}) 

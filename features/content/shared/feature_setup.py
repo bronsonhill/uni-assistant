@@ -1,43 +1,25 @@
 """
-Centralized setup module for feature pages in Study Legend.
+Shared feature setup module for Study Legend.
 
-This module provides common functionality used by all feature pages,
-including page configuration, authentication, and navigation setup.
+This module provides common functionality for feature pages,
+including authentication and subscription status display.
+Navigation is handled centrally by Home.py.
 """
 import streamlit as st
-import sys
-import os
-from typing import Optional, Tuple, Callable
-
-# Add parent directory to path (needed when imported from features/)
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-from common_nav import setup_navigation
 from st_paywall import add_auth
 
-def setup_feature_page(display_subscription: bool = True, required: bool = False) -> None:
+def setup_feature(display_subscription: bool = True, required: bool = False) -> None:
     """
-    Set up a feature page with standard configuration.
+    Set up a feature with standard configuration.
     
     This function:
-    1. Configures the Streamlit page
-    2. Initializes authentication
-    3. Sets up navigation
+    1. Initializes authentication
+    2. Displays subscription status if requested
     
     Args:
         display_subscription: Whether to display subscription status
         required: Whether subscription is required for this page
     """
-    # Set the page config (should be the same across all pages)
-    st.set_page_config(
-        page_title="Study Legend AI", 
-        page_icon="📚",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-    
     # Ensure login button is always in the sidebar for unauthenticated users
     user_email = st.session_state.get("email")
     is_authenticated = user_email is not None and user_email != ""
@@ -85,8 +67,4 @@ def setup_feature_page(display_subscription: bool = True, required: bool = False
                 st.warning("❌ No active subscription")
                 
                 # Add link to Account page
-                st.markdown("[View account details](/render_account)", unsafe_allow_html=True)
-    
-    # Create and run the navigation menu
-    pg = setup_navigation()
-    pg.run()
+                st.markdown("[View account details](/render_account)", unsafe_allow_html=True) 

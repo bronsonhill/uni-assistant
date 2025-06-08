@@ -882,3 +882,36 @@ def display_practice_question(question_data, is_authenticated, user_email):
 def handle_chat_input(question_info: Dict, is_authenticated: bool):
     """This function is no longer needed as chat input is now handled within the display_practice_question function"""
     pass
+
+def render():
+    """Main entry point for the practice page"""
+    st.title("Practice Questions")
+    
+    # Get user email
+    user_email = get_user_email()
+    is_authenticated = bool(user_email)
+    
+    if not is_authenticated:
+        st.warning("Please sign in to access practice questions")
+        return
+    
+    # Display setup screen
+    display_setup_screen(is_authenticated)
+    
+    # Get current question from queue
+    if not hasattr(st.session_state, 'questions_queue'):
+        st.session_state.questions_queue = []
+    
+    if not st.session_state.questions_queue:
+        st.info("No questions available for practice. Please add some questions first.")
+        return
+    
+    current_idx = st.session_state.get('current_question_idx', 0)
+    if current_idx >= len(st.session_state.questions_queue):
+        current_idx = 0
+        st.session_state.current_question_idx = 0
+    
+    current_question = st.session_state.questions_queue[current_idx]
+    
+    # Display the practice question
+    display_practice_question(current_question, is_authenticated, user_email)

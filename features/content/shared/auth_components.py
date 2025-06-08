@@ -7,6 +7,7 @@ import functools
 from typing import Optional, Callable, Any
 from datetime import datetime
 import logging
+from st_paywall import add_auth
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -123,7 +124,7 @@ def show_login_prompt(sidebar: bool = False, force_rerun: bool = True) -> None:
     logger.info("User not authenticated, showing login UI")
     st.warning("Please sign in to access this feature")
     # Use st-paywall's add_auth for authentication
-    from st_paywall import add_auth
+    
     logger.info("Calling st-paywall add_auth")
     add_auth(
         required=False,
@@ -132,9 +133,9 @@ def show_login_prompt(sidebar: bool = False, force_rerun: bool = True) -> None:
         login_sidebar=sidebar
     )
     # Force a rerun to update the UI after authentication
-    if force_rerun:
-        logger.info("Forcing rerun after authentication")
-        st.rerun()
+    # if force_rerun:
+    #     logger.info("Forcing rerun after authentication")
+    #     st.rerun()
 
 def show_upgrade_prompt() -> None:
     """Show the premium upgrade prompt component."""

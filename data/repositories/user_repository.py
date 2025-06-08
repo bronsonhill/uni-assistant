@@ -3,6 +3,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
 from .base_repository import BaseRepository
+from core.exceptions.business_exceptions import DatabaseError
 
 class UserRepository(BaseRepository):
     """Repository interface for user-related operations."""
@@ -133,7 +134,7 @@ class MongoDBUserRepository(BaseRepository):
     
     def __init__(self, db_client):
         super().__init__("users")
-        self.db = db_client[self.collection_name]
+        self.db = db_client.get_database("study_legend")[self.collection_name]
 
     def find_by_id(self, id: str) -> Optional[Dict]:
         """Find a user by ID"""

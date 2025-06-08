@@ -6,9 +6,6 @@ from dotenv import load_dotenv
 from datetime import datetime
 from config.page_config import configure_page
 
-# Configure the page
-configure_page()
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +29,7 @@ class StudyLegendApp:
             self.container = self._initialize_container()
             self._initialize_services()
             self._initialize_components()
+            self._initialize_pages()
             logger.info("StudyLegendApp initialized successfully")
         except Exception as e:
             logger.error(f"Error during StudyLegendApp initialization: {str(e)}", exc_info=True)
@@ -105,6 +103,133 @@ class StudyLegendApp:
             logger.error(f"Error initializing UI components: {str(e)}", exc_info=True)
             raise
 
+    def _home_page(self):
+        """Render the home page"""
+        try:
+            logger.info("Rendering home page")
+            self.home_content.render()
+        except Exception as e:
+            logger.error(f"Error rendering home page: {str(e)}", exc_info=True)
+            st.error("Error loading home page")
+            if self.config["debug"]:
+                st.exception(e)
+
+    def _practice_page(self):
+        """Render the practice page"""
+        self._execute_feature_page("features/content/practice/practice_ui.py")
+
+    def _add_questions_page(self):
+        """Render the add questions page"""
+        self._execute_feature_page("features/content/add_questions/add_questions_ui.py")
+
+    def _manage_questions_page(self):
+        """Render the manage questions page"""
+        self._execute_feature_page("features/content/manage_questions/manage_questions_ui.py")
+
+    def _add_ai_page(self):
+        """Render the add with AI page"""
+        self._execute_feature_page("features/content/add_ai/add_ai_ui.py")
+
+    def _tutor_page(self):
+        """Render the tutor page"""
+        self._execute_feature_page("features/content/tutor/tutor_ui.py")
+
+    def _assessments_page(self):
+        """Render the assessments page"""
+        self._execute_feature_page("features/content/assessments/assessments_ui.py")
+
+    def _account_page(self):
+        """Render the account page"""
+        self._execute_feature_page("features/content/account/account_ui.py")
+
+    def _settings_page(self):
+        """Render the settings page"""
+        self._execute_feature_page("features/content/settings/settings_ui.py")
+
+    def _initialize_pages(self):
+        """Initialize application pages"""
+        logger.debug("Initializing pages")
+        try:
+            # Create page objects
+            self.pages = [
+                st.Page(
+                    self._home_page,
+                    title="Home",
+                    icon="🏠",
+                    default=True
+                ),
+                st.Page(
+                    self._practice_page,
+                    title="Practice",
+                    icon="🎯"
+                ),
+                st.Page(
+                    self._add_questions_page,
+                    title="Add Questions",
+                    icon="🆕"
+                ),
+                st.Page(
+                    self._manage_questions_page,
+                    title="Manage Questions",
+                    icon="📝"
+                ),
+                st.Page(
+                    self._add_ai_page,
+                    title="Add with AI",
+                    icon="🤖"
+                ),
+                st.Page(
+                    self._tutor_page,
+                    title="Tutor",
+                    icon="👨‍🏫"
+                ),
+                st.Page(
+                    self._assessments_page,
+                    title="Assessments",
+                    icon="📅"
+                ),
+                st.Page(
+                    self._account_page,
+                    title="Account",
+                    icon="👤"
+                ),
+                st.Page(
+                    self._settings_page,
+                    title="Settings",
+                    icon="⚙️"
+                )
+            ]
+            
+            logger.debug(f"Pages initialized successfully: {[p.title for p in self.pages]}")
+        except Exception as e:
+            logger.error(f"Error initializing pages: {str(e)}", exc_info=True)
+            raise
+
+    def _execute_feature_page(self, page_path: str):
+        """Execute a feature page with proper setup and error handling"""
+        try:
+            logger.info(f"Executing feature page: {page_path}")
+            
+            # Import the page module
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("feature_page", page_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            
+            # Execute the page's render function
+            if hasattr(module, "render"):
+                module.render()
+            else:
+                logger.error(f"Page {page_path} does not have a render function")
+                st.error("Error: Page not properly configured")
+            
+            logger.info(f"Feature page execution completed: {page_path}")
+        except Exception as e:
+            logger.error(f"Error executing feature page {page_path}: {str(e)}", exc_info=True)
+            st.error(f"Error loading page: {page_path}")
+            if self.config["debug"]:
+                st.exception(e)
+
     def _setup_page(self):
         """Configure Streamlit page settings"""
         logger.debug("Setting up Streamlit page")
@@ -114,25 +239,43 @@ class StudyLegendApp:
             logger.error(f"Error setting up page: {str(e)}", exc_info=True)
             raise
 
-    def _handle_navigation(self):
-        """Handle page navigation"""
-        logger.debug("Handling navigation")
+    def _setup_sidebar(self):
+        """Configure and render the sidebar"""
+        logger.debug("Setting up sidebar")
         try:
-            query_params = st.query_params
-            current_page = query_params.get("page", ["home"])[0]
-            logger.info(f"Navigating to page: {current_page}")
+            with st.sidebar:
+                # User profile section
+                if self.auth_components.is_authenticated():
+                    email = st.session_state.get("email")
+                    st.markdown(f"### 👤 {email}")
+                    
+                    # Add subscription status
+                    with st.expander("💳 Subscription Status", expanded=True):
+                        if st.session_state.get("user_subscribed", False):
+                            st.success("✅ Premium subscription active")
+                            if st.session_state.get("subscriptions"):
+                                try:
+                                    subscription = st.session_state.subscriptions.data[0]
+                                    if subscription.get("current_period_end"):
+                                        end_timestamp = subscription["current_period_end"]
+                                        end_date = datetime.fromtimestamp(end_timestamp)
+                                        days_remaining = (end_date - datetime.now()).days
+                                        st.info(f"⏱️ {days_remaining} days remaining")
+                                except Exception as e:
+                                    logger.error(f"Error displaying subscription info: {str(e)}")
+                            
+                            st.markdown("[View account details](/7_👤_Account)", unsafe_allow_html=True)
+                        else:
+                            st.warning("❌ No active subscription")
+                            st.markdown("[View account details](/render_account)", unsafe_allow_html=True)
+                else:
+                    st.markdown("### 👋 Welcome to Study Legend")
+                    st.markdown("Please sign in to access all features")
+                    self.auth_components.show_login_prompt()
             
-            if current_page == "home":
-                self.home_content.render()
-            elif current_page == "practice":
-                from features.content.practice.practice_content import PracticeContent
-                PracticeContent(self.question_service).render()
-            elif current_page == "profile":
-                from features.content.profile.profile_content import ProfileContent
-                ProfileContent(self.user_service).render()
-            logger.debug("Navigation completed successfully")
+            logger.debug("Sidebar setup completed")
         except Exception as e:
-            logger.error(f"Error during navigation: {str(e)}", exc_info=True)
+            logger.error(f"Error setting up sidebar: {str(e)}", exc_info=True)
             raise
 
     def _handle_error(self, error: Exception):
@@ -148,6 +291,18 @@ class StudyLegendApp:
         
         if self.config["debug"]:
             st.exception(error)
+
+    def _execute_page(self, page):
+        """Execute a page with proper error handling"""
+        try:
+            logger.info(f"Executing page: {page.title}")
+            page.run()
+            logger.info(f"Page execution completed: {page.title}")
+        except Exception as e:
+            logger.error(f"Error executing page {page.title}: {str(e)}", exc_info=True)
+            st.error(f"Error loading page: {page.title}")
+            if self.config["debug"]:
+                st.exception(e)
 
     def run(self):
         """Run the application"""
@@ -171,8 +326,13 @@ class StudyLegendApp:
             email = st.session_state.get("email")
             logger.info(f"User email from session: {email}")
             
-            # Handle navigation and render current page
-            self._handle_navigation()
+            # Setup sidebar
+            self._setup_sidebar()
+            
+            # Setup navigation and run selected page
+            selected_page = st.navigation(self.pages)
+            self._execute_page(selected_page)
+            
             logger.info("Application run completed successfully")
             
         except Exception as e:
@@ -181,6 +341,9 @@ class StudyLegendApp:
 
 def main():
     """Application entry point"""
+    # Configure the page only when running as main script
+    configure_page()
+    
     logger.info("Application starting")
     try:
         app = StudyLegendApp()

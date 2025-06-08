@@ -7,48 +7,48 @@ def render_home():
 
 def render_practice():
     """Load and run the practice page"""
-    from features.content.practice import practice_content
-    practice_content.run()
+    from features.content.practice.practice_ui import render
+    render()
 
 def render_add_ai():
     """Load and run the Add with AI page"""
-    from features.content.add_ai import add_ai_content
-    add_ai_content.run()
+    from features.content.add_ai.add_ai_ui import render
+    render()
 
 def render_tutor():
     """Load and run the Subject Tutor page"""
-    from features.content.tutor import tutor_content
-    tutor_content.run()
+    from features.content.tutor.tutor_ui import render
+    render()
 
 def render_assessments():
     """Load and run the Assessments page"""
-    from features.content import assessments_content
-    assessments_content.run()
+    from features.content.assessments.assessments_ui import render
+    render()
 
 def render_manage():
     """Load and run the Manage Questions page"""
-    from features.content.manage import manage_content
-    manage_content.run()
+    from features.content.manage_questions.manage_questions_ui import render
+    render()
 
 def render_add_manual():
     """Load and run the Add Manually page"""
-    from features.content.add_manual import add_manual_content
-    add_manual_content.run()
+    from features.content.add_questions.add_questions_ui import render
+    render()
 
 def render_account():
     """Render the account page content"""
-    from account import render_account_page
-    render_account_page()
+    from features.content.account.account_ui import render
+    render()
 
 def render_settings():
     """Load and run the Settings page"""
-    from features.content.settings import settings_content
-    settings_content.run()
+    from features.content.settings.settings_ui import render
+    render()
 
 def render_statistics():
     """Load and run the Statistics page"""
-    from features.content.statistics import statistics_content
-    statistics_content.run()
+    from features.content.statistics.statistics_ui import render
+    render()
 
 def setup_navigation():
     """

@@ -131,7 +131,7 @@ class MongoDBQuestionRepository(QuestionRepository):
     def __init__(self, db_client):
         """Initialize the MongoDB question repository."""
         super().__init__()
-        self.db = db_client[self.collection_name]
+        self.db = db_client.get_database("study_legend")[self.collection_name]
     
     def find_by_id(self, id: str) -> Optional[Dict]:
         """Find a question by ID."""
