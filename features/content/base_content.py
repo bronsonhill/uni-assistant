@@ -15,14 +15,14 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-# Common imports from parent modules
-import Home
+# Import from mongodb package
+from mongodb.queue_cards import load_data
 
 # Function to initialize data in session state
 def init_data(email: Optional[str] = None) -> None:
     """Initialize data in session state if not already present."""
     if "data" not in st.session_state:
-        st.session_state.data = Home.load_data(email=email)
+        st.session_state.data = load_data(email=email)
 
 def init_rag_manager(email: Optional[str] = None) -> None:
     """Initialize RAG manager in session state if not already present."""

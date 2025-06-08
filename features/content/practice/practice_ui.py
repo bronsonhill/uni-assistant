@@ -12,7 +12,8 @@ from st_paywall import add_auth
 from features.content.practice.practice_core import (
     get_score_emoji, get_cached_vector_store_id, reset_question_state,
     save_score_with_answer, save_ai_feedback_to_data, go_to_next_question,
-    save_data, update_question_score, get_random_question_index, build_cached_queue, build_queue  # Import additional functions from practice_core
+    save_data, get_random_question_index, build_cached_queue, build_queue,
+    analytics_service  # Import analytics_service instead of update_question_score
 )
 
 # Import from base and external modules

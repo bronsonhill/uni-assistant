@@ -1,15 +1,65 @@
 # Study Legend
 
-Become a study legend with AI!
+A comprehensive study management system built with Python and Streamlit.
+
+## Documentation
+
+### User Documentation
+- [Getting Started Guide](docs/user-guide/getting-started.md)
+- [User Guide](docs/user-guide/)
+- [Troubleshooting](docs/user-guide/getting-started.md#troubleshooting)
+
+### Developer Documentation
+- [Development Guide](docs/development/development-guide.md)
+- [Architecture Overview](docs/architecture/system-overview.md)
+- [API Documentation](docs/api/service-api.md)
+
+## Quick Start
+
+1. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Configure Environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+3. **Run the Application**
+   ```bash
+   streamlit run run.py
+   ```
 
 ## Features
 
-- AI-generated practice questions
-- Flashcard-based study with spaced repetition
-- AI tutoring with subject knowledge
-- Assessments tracking
-- Question management
-- Multi-page navigation with streamlined UI
+- Question Management
+- Practice Sessions
+- Progress Tracking
+- Analytics Dashboard
+- Study Planning
+
+## Contributing
+
+Please read our [Development Guide](docs/development/development-guide.md) for details on our code of conduct and the process for submitting pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support, please:
+1. Check the [Troubleshooting Guide](docs/user-guide/getting-started.md#troubleshooting)
+2. Review the [Documentation](docs/)
+3. Open an issue on GitHub
+
+## Acknowledgments
+
+- Streamlit for the web framework
+- MongoDB for the database
+- All contributors who have helped shape this project
 
 ## User Authentication and Subscription System
 

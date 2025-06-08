@@ -2,74 +2,82 @@
 MongoDB connection and utility functions.
 Provides a consistent interface for connecting to MongoDB.
 """
-import os
-import streamlit as st
-from pymongo import MongoClient
-from pymongo.database import Database
-from pymongo.collection import Collection
-from typing import Optional
+from .connection_manager import (
+    MongoDBConnectionManager,
+    handle_mongodb_operation,
+    MongoDBTransaction,
+    MongoDBError,
+    ConnectionError,
+    QueryError,
+    TransactionError
+)
 
-# Get the connection string from Streamlit secrets
-def get_connection_string() -> str:
-    """Get the MongoDB connection string from environment or secrets."""
-    # First try to get from environment variable
-    conn_str = os.environ.get("MONGODB_CONNECTION_STRING")
-    
-    # If not in environment, try to get from Streamlit secrets
-    if not conn_str and hasattr(st, "secrets") and "db_connection_string" in st.secrets:
-        conn_str = st.secrets["db_connection_string"]
-        
-    if not conn_str:
-        raise ValueError(
-            "MongoDB connection string not found. "
-            "Set the MONGODB_CONNECTION_STRING environment variable "
-            "or add db_connection_string to .streamlit/secrets.toml"
-        )
-    
-    return conn_str
+# Create a singleton instance of the connection manager
+_manager = MongoDBConnectionManager()
 
-@st.cache_resource
-def get_mongodb_client() -> MongoClient:
+@handle_mongodb_operation
+def get_mongodb_client():
     """
     Get a MongoDB client instance.
     Uses Streamlit's cache_resource decorator to reuse the connection.
     """
-    connection_string = get_connection_string()
-    return MongoClient(connection_string)
+    return _manager.get_client()
 
-def get_database(db_name: str = "study_legend") -> Database:
+@handle_mongodb_operation
+def get_database(db_name: str = "study_legend"):
     """Get a MongoDB database instance."""
-    client = get_mongodb_client()
-    return client[db_name]
+    return _manager.get_database(db_name)
 
-def get_collection(collection_name: str, db_name: str = "study_legend") -> Collection:
+@handle_mongodb_operation
+def get_collection(collection_name: str, db_name: str = "study_legend"):
     """Get a MongoDB collection instance."""
-    db = get_database(db_name)
-    return db[collection_name]
+    return _manager.get_collection(collection_name, db_name)
 
 def create_indexes():
     """
     Create indexes for MongoDB collections to optimize query performance.
     This function should be called once during application initialization.
     """
-    # Get database and collections
-    db = get_database()
-    queue_cards = db["queue_cards"]
-    users = db["users"]
-    assessments = db["assessments"]
-    chat_history = db["chat_sessions"]
-    
-    # Create index for queue_cards collection
-    queue_cards.create_index("user_email")
-    
-    # Create index for users collection
-    users.create_index("email", unique=True)
-    
-    # Create index for assessments collection
-    assessments.create_index("user_email")
-    
-    # Create index for chat_history collection
-    chat_history.create_index("user_email")
-    chat_history.create_index("timestamp")
-    
-    print("MongoDB indexes created successfully.")
+    try:
+        # Get database and collections
+        db = get_database()
+        queue_cards = db["queue_cards"]
+        users = db["users"]
+        assessments = db["assessments"]
+        chat_history = db["chat_sessions"]
+        
+        # Create index for queue_cards collection
+        queue_cards.create_index("user_email")
+        
+        # Create index for users collection
+        users.create_index("email", unique=True)
+        
+        # Create index for assessments collection
+        assessments.create_index("user_email")
+        
+        # Create index for chat_history collection
+        chat_history.create_index("user_email")
+        chat_history.create_index("timestamp")
+        
+        print("MongoDB indexes created successfully.")
+    except Exception as e:
+        print(f"Error creating MongoDB indexes: {str(e)}")
+        raise
+
+def close_connection():
+    """Close the MongoDB connection."""
+    _manager.close()
+
+# Export all necessary components
+__all__ = [
+    'get_mongodb_client',
+    'get_database',
+    'get_collection',
+    'create_indexes',
+    'close_connection',
+    'MongoDBTransaction',
+    'MongoDBError',
+    'ConnectionError',
+    'QueryError',
+    'TransactionError'
+]

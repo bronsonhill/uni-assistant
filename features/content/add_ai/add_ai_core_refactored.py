@@ -13,8 +13,9 @@ from typing import Dict, List, Any, Optional
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-# Import from Home
-from Home import load_data, save_data, add_question
+# Import from mongodb package
+from mongodb.queue_cards import load_data, save_data
+from Home import add_question
 
 # Import from services
 from services.rag_manager import RAGManager

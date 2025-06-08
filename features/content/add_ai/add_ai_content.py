@@ -10,8 +10,9 @@ import os
 # Add parent directory to path so we can import from parent modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-# Import from Home
-from Home import load_data, get_user_email
+# Import from mongodb package
+from mongodb.queue_cards import load_data
+from Home import get_user_email
 from features.content.base_content import show_preview_mode
 
 # Import from refactored add_ai modules

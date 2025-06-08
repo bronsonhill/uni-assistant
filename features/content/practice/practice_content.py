@@ -11,8 +11,7 @@ from st_paywall import add_auth
 # Add parent directory to path so we can import from parent modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-# Import from Home and base content
-import Home
+# Import from base content
 from features.content.base_content import check_auth_for_action, show_preview_mode, get_user_email, init_data
 
 # Import from refactored practice modules

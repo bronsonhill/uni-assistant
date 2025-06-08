@@ -276,7 +276,7 @@ def display_file_upload(is_subscribed: bool):
     # Initialize data if user is logged in
     if "email" in st.session_state:
         if "data" not in st.session_state:
-            from Home import load_data
+            from mongodb.queue_cards import load_data
             st.session_state.data = load_data(st.session_state.email)
     
     # Get the list of existing subjects from the user's data

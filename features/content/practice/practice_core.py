@@ -16,17 +16,21 @@ from functools import wraps
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-# Import functions from Home.py
-import Home
+# Import from services
+from core.services.analytics_service import AnalyticsService
+from core.services.question_service import QuestionService
+from data.repositories.question_repository import MongoDBQuestionRepository
+from data.repositories.user_repository import MongoDBUserRepository
 from ai_feedback import evaluate_answer, chat_about_question
-from mongodb.queue_cards import save_ai_feedback, update_single_question_score
+from mongodb.queue_cards import save_ai_feedback, update_single_question_score, load_data, save_data
 from features.content.base_content import check_auth_for_action, show_preview_mode, get_user_email
+from mongodb.connection import get_mongodb_client
 
-# Use functions from Home module
-load_data = Home.load_data
-save_data = Home.save_data
-update_question_score = Home.update_question_score
-calculate_weighted_score = Home.calculate_weighted_score
+# Initialize repositories and services
+db_client = get_mongodb_client()
+question_repository = MongoDBQuestionRepository(db_client)
+user_repository = MongoDBUserRepository(db_client)
+analytics_service = AnalyticsService(question_repository, user_repository)
 
 # Constants
 KNOWLEDGE_LEVEL_OPTIONS = {
@@ -91,7 +95,12 @@ def build_question_item(subject: str, week: str, q_idx: int, q_data: Dict) -> Di
     """Create a standardized question item for the queue"""
     weighted_score = None
     if "scores" in q_data and q_data["scores"]:
-        weighted_score = calculate_weighted_score(q_data["scores"])
+        weighted_score = analytics_service.calculate_weighted_score(
+            q_data["scores"],
+            q_data.get("last_practiced"),
+            decay_factor=0.1,
+            forgetting_decay_factor=0.05
+        )
     
     return {
         "subject": subject,
@@ -238,15 +247,14 @@ def save_score_with_answer(data: Dict, question_item: Dict, score: int, user_ans
         data[subject][week][question_idx]["last_practiced"] = int(time.time())
         
         print("Calling update_question_score...")
-        # Update the data in MongoDB
-        data = update_question_score(
-            data,
-            subject,
-            week,
-            question_idx,
-            score,
-            user_answer,
-            user_email
+        # Update the data in MongoDB using analytics service
+        data = analytics_service.update_question_score(
+            subject=subject,
+            week=week,
+            idx=question_idx,
+            score=score,
+            user_answer=user_answer,
+            email=user_email
         )
         print("update_question_score completed")
         
@@ -420,4 +428,21 @@ def go_to_next_question():
         # Practice session completed
         reset_practice()
         
-        # Show completion message will be handled by UI layer 
+        # Show completion message will be handled by UI layer
+
+def handle_question_score(data: Dict, subject: str, week: str, question_idx: int, score: int, user_answer: str = None) -> Dict:
+    """Handle updating a question's score"""
+    print("Calling update_question_score...")
+    
+    # Update the score using the analytics service
+    data = analytics_service.update_question_score(
+        subject=subject,
+        week=week,
+        idx=question_idx,
+        score=score,
+        user_answer=user_answer,
+        email=st.session_state.get("email")
+    )
+    
+    print("update_question_score completed")
+    return data 
